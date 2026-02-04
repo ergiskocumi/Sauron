@@ -58,7 +58,7 @@ export const PathSimulationPanel = ({
         className="w-full px-6 py-4 flex items-center justify-between hover:bg-slate-50/50 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl shadow-lg shadow-purple-500/20">
+          <div className="p-2.5 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl shadow-lg shadow-blue-500/20">
             <Target className="w-5 h-5 text-white" />
           </div>
           <div className="text-left">
@@ -91,7 +91,7 @@ export const PathSimulationPanel = ({
             <select
               value={sourceNode}
               onChange={(e) => setSourceNode(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               disabled={isCalculating}
             >
               <option value="">Seleziona firewall...</option>
@@ -118,7 +118,7 @@ export const PathSimulationPanel = ({
               value={targetIp}
               onChange={(e) => setTargetIp(e.target.value)}
               placeholder="es. 8.8.8.8"
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
               disabled={isCalculating}
             />
           </div>
@@ -135,20 +135,20 @@ export const PathSimulationPanel = ({
 
           {/* Path Result Summary */}
           {pathResult && (
-            <div className="p-4 bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-100 rounded-2xl">
+            <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-100 rounded-2xl">
               <div className="flex items-center gap-2 mb-2">
-                <Zap className="w-4 h-4 text-purple-600" />
-                <span className="text-xs font-black text-purple-900 uppercase tracking-widest">
+                <Zap className="w-4 h-4 text-blue-600" />
+                <span className="text-xs font-black text-blue-900 uppercase tracking-widest">
                   Risultato
                 </span>
               </div>
-              <p className="text-sm font-bold text-purple-700">{pathResult.summary}</p>
-              <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-purple-600">
+              <p className="text-sm font-bold text-blue-700">{pathResult.summary}</p>
+              <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-blue-600">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse" />
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
                   <span>{pathResult.nodeKeys.length} hop(s)</span>
                 </div>
-                <span className="text-purple-300">•</span>
+                <span className="text-blue-300">•</span>
                 <span className="uppercase tracking-wider">{pathResult.status}</span>
               </div>
             </div>
@@ -160,8 +160,8 @@ export const PathSimulationPanel = ({
               type="submit"
               disabled={isCalculating || !sourceNode || !targetIp}
               className={cn(
-                'flex-1 px-5 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-2xl font-bold text-sm shadow-xl shadow-purple-500/20 transition-all flex items-center justify-center gap-2',
-                'hover:shadow-2xl hover:shadow-purple-500/30 hover:scale-[1.02]',
+                'flex-1 px-5 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl font-bold text-sm shadow-xl shadow-blue-500/20 transition-all flex items-center justify-center gap-2',
+                'hover:shadow-2xl hover:shadow-blue-500/30 hover:scale-[1.02]',
                 'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
               )}
             >

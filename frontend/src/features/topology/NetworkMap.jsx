@@ -48,11 +48,18 @@ const NetworkNode = ({ data, selected }) => {
 
   return (
     <div className={cn(
-      "px-3 py-2.5 shadow-lg rounded-xl border transition-all duration-300 flex flex-col items-center min-w-[110px] bg-white group",
-      selected 
-        ? 'border-blue-500 ring-4 ring-blue-500/10 scale-105 shadow-blue-500/10' 
-        : cn('border-slate-100 hover:border-slate-300', colorClass)
+      "px-3 py-2.5 shadow-lg rounded-xl border transition-all duration-500 flex flex-col items-center min-w-[110px] bg-white group relative",
+      data.isHighlighted 
+        ? 'border-blue-600 ring-4 ring-blue-600/20 scale-110 shadow-[0_0_25px_-5px_rgba(37,99,235,0.4)] z-10' 
+        : selected
+          ? 'border-blue-500 ring-4 ring-blue-500/10 scale-105 shadow-blue-500/10'
+          : cn('border-slate-100 hover:border-slate-300', colorClass)
     )}>
+      {data.isHighlighted && (
+        <div className="absolute -top-2 -right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white animate-bounce-short">
+          <Zap size={10} className="text-white" />
+        </div>
+      )}
       <Handle type="target" position={Position.Top} className="w-2 h-2 !bg-slate-300 border-2 border-white !-top-1" />
       <div className="mb-1.5 p-1 rounded-lg bg-white/50 group-hover:scale-110 transition-transform duration-300 scale-75 origin-center">
         <Icon />
@@ -187,11 +194,15 @@ export const NetworkMap = () => {
               source: endpoints[i],
               target: endpoints[j],
               label: link.subnet,
+              labelStyle: { fill: '#64748b', fontWeight: 800, fontSize: '10px', fontSans: 'monospace' },
+              labelBgStyle: { fill: 'rgba(255, 255, 255, 0.9)', fillOpacity: 1 },
+              labelBgPadding: [6, 10],
+              labelBgBorderRadius: 8,
               animated: false,
-              style: { strokeWidth: 2, stroke: '#94a3b8' },
+              style: { strokeWidth: 2, stroke: '#cbd5e1' },
               markerEnd: {
                 type: MarkerType.ArrowClosed,
-                color: '#94a3b8',
+                color: '#cbd5e1',
               },
             });
           }
@@ -277,28 +288,43 @@ export const NetworkMap = () => {
             ...node.data,
             isHighlighted,
           },
-          style: isHighlighted
-            ? {
-                border: '3px solid #8b5cf6',
-                boxShadow: '0 0 20px rgba(139, 92, 246, 0.5)',
-              }
-            : undefined,
         };
       });
 
       // Highlight edges
       const highlightedEdges = originalEdges.map(edge => {
-        const isHighlighted = result.nodeKeys.includes(edge.source) &&
-                              result.nodeKeys.includes(edge.target);
+        // Check if this edge is part of the path
+        let isHighlighted = false;
+        for (let i = 0; i < result.nodeKeys.length - 1; i++) {
+          const currentHop = result.nodeKeys[i];
+          const nextHop = result.nodeKeys[i+1];
+          if ((edge.source === currentHop && edge.target === nextHop) ||
+              (edge.source === nextHop && edge.target === currentHop)) {
+            isHighlighted = true;
+            break;
+          }
+        }
+
         return {
           ...edge,
           animated: isHighlighted,
           style: isHighlighted
-            ? { strokeWidth: 3, stroke: '#8b5cf6' }
-            : { strokeWidth: 2, stroke: '#94a3b8' },
+            ? { 
+                strokeWidth: 5, 
+                stroke: '#2563eb', 
+                filter: 'drop-shadow(0 0 12px rgba(37, 99, 235, 0.8))',
+                strokeDasharray: '8 8',
+              }
+            : { strokeWidth: 2, stroke: '#e2e8f0', opacity: 0.2 },
+          labelStyle: isHighlighted
+            ? { fill: '#1e40af', fontWeight: 900, fontSize: '11px' }
+            : { fill: '#94a3b8', fontWeight: 700, fontSize: '9px', opacity: 0.5 },
+          labelBgStyle: isHighlighted
+            ? { fill: '#eff6ff', stroke: '#3b82f6', strokeWidth: 1.5 }
+            : { fill: 'rgba(255, 255, 255, 0.7)', stroke: '#f1f5f9', strokeWidth: 1 },
           markerEnd: isHighlighted
-            ? { type: MarkerType.ArrowClosed, color: '#8b5cf6' }
-            : { type: MarkerType.ArrowClosed, color: '#94a3b8' },
+            ? { type: MarkerType.ArrowClosed, color: '#2563eb', width: 25, height: 25 }
+            : { type: MarkerType.ArrowClosed, color: '#e2e8f0' },
         };
       });
 
@@ -356,7 +382,19 @@ export const NetworkMap = () => {
       >
         <Background gap={20} color="#e2e8f0" variant="dots" />
         <Controls showInteractive={false} className="!bg-white !border-slate-200 !shadow-lg !rounded-xl overflow-hidden" />
-        
+
+        {/* Path Simulation Panel */}
+        <Panel position="top-left" className="!m-4">
+          <PathSimulationPanel
+            availableNodes={availableNodes}
+            onCalculatePath={handleCalculatePath}
+            onResetPath={handleResetPath}
+            isCalculating={pathLoading}
+            pathResult={pathResult}
+            pathError={pathError}
+          />
+        </Panel>
+
         <Panel position="top-right">
           <div className="flex flex-col gap-3">
             <div className="bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200 shadow-xl flex gap-1">

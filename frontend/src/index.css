@@ -49,6 +49,19 @@ body {
   stroke-width: 2;
 }
 
+@keyframes bounce-short {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.animate-bounce-short {
+  animation: bounce-short 1s ease-in-out infinite;
+}
+
 .react-flow__controls button {
   background-color: white !important;
   border-bottom: 1px solid #e2e8f0 !important;
