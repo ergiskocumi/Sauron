@@ -23,8 +23,8 @@ import pickle
 import gzip
 import logging
 from pathlib import Path
+import traceback
 from typing import Optional
-from datetime import datetime
 
 from application.models.snapshot import NetworkSnapshot
 
@@ -167,8 +167,8 @@ class SnapshotRepository:
             raise SnapshotNotFoundError(f"Snapshot non trovato: {path}")
 
         try:
-            # Carica
-            is_compressed = path.suffix == ".gz" or path.suffixes == [".snapshot", ".gz"]
+            # Carica (auto-detect gzip anche se estensione e' .snapshot)
+            is_compressed = self._is_gzip_file(path) or path.suffix == ".gz" or path.suffixes == [".snapshot", ".gz"]
 
             if is_compressed:
                 with gzip.open(path, "rb") as f:
@@ -198,6 +198,8 @@ class SnapshotRepository:
 
         except (pickle.UnpicklingError, EOFError, gzip.BadGzipFile) as e:
             logger.error(f"Snapshot corrotto: {path}")
+            import traceback
+            traceback.print_exc()
             raise SnapshotCorruptedError(f"Snapshot corrotto: {e}") from e
 
         except SnapshotVersionError:
@@ -318,3 +320,15 @@ class SnapshotRepository:
         actual_path.unlink()
         logger.info(f"Snapshot eliminato: {actual_path}")
         return True
+
+    @staticmethod
+    def _is_gzip_file(path: Path) -> bool:
+        """
+        Rileva gzip tramite magic bytes (1F 8B).
+        Utile quando il file e' compresso ma ha estensione .snapshot.
+        """
+        try:
+            with open(path, "rb") as f:
+                return f.read(2) == b"\x1f\x8b"
+        except OSError:
+            return False
