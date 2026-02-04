@@ -38,6 +38,6 @@ class FirewallRepository(ABC):
         pass
     
     @abstractmethod
-    async def get_interfaces(self, vdom: str = "root", type_filter: Optional[str] = None) -> List[NetworkInterface]:
+    async def get_interfaces(self, vdom: str, type_filter: Optional[str] = None) -> List[NetworkInterface]:
         """Recupera le interfacce (Asincrono)."""
         pass

@@ -62,27 +62,29 @@ class FortiGateClient(FirewallRepository):
     # --- IMPLEMENTAZIONE DEL CONTRATTO (Ports) ---
     # Nota: Tutti i metodi ora devono avere 'async def' e usare 'await'
 
-    async def get_routing_table(self) -> List[Route]:
-        """Scarica la Routing Table (Asincrono)."""
-        # Spesso la routing table globale richiede il contesto root
+    async def get_routing_table(self, vdom: str = "root") -> List[Route]:
+        """
+        Scarica la Routing Table per uno specifico VDOM.
+        """
         endpoint = "/monitor/router/ipv4"
-        raw_data = await self._make_request(endpoint, params={'vdom': 'root'})
+        
+        # ORA usiamo il parametro vdom dinamico, non più fisso a 'root'
+        raw_data = await self._make_request(endpoint, params={'vdom': vdom})
         
         clean_routes = []
         for item in raw_data:
             try:
                 route = Route(**item)
                 clean_routes.append(route)
-            except ValidationError as e:
-                # Logghiamo l'errore ma continuiamo
+            except ValidationError:
                 pass 
         return clean_routes
 
     async def get_interfaces(self, vdom: str = "root", type_filter: Optional[str] = None) -> List[NetworkInterface]:
-        """Scarica le interfacce (Asincrono)."""
+        """Scarica le interfacce (Asincrono) con FILTRO POST-PROCESSING."""
         endpoint = "/cmdb/system/interface"
         
-        params = {'vdom': vdom}
+        params = {'vdom': vdom} # Chiediamo al firewall di filtrare...
         if type_filter:
             params['filter'] = f"type=={type_filter}"
 
@@ -91,6 +93,14 @@ class FortiGateClient(FirewallRepository):
         clean_interfaces = []
         for item in raw_data:
             try:
+                # --- FIX: CONTROLLO DI SICUREZZA ---
+                # A volte l'API Global restituisce tutto. Controlliamo il campo 'vdom'.
+                # Se l'interfaccia dice di appartenere a "root", ma noi stiamo scansionando "ETIFOIL", la ignoriamo.
+                item_vdom = item.get("vdom", "root")
+                if item_vdom != vdom:
+                    continue 
+                # -----------------------------------
+
                 interface = NetworkInterface(**item)
                 clean_interfaces.append(interface)
             except ValidationError:
