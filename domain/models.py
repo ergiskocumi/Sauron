@@ -25,16 +25,19 @@ class Route(BaseModel):
     vrf: int = Field(0, description="ID della VRF (0 = Global)")
     
     # Monitoring
-    install_date: int = Field(..., description="Unix timestamp di installazione rotta")
+    install_date: Optional[int] = Field(None, description="Unix timestamp di installazione")
 
     # --- Computed Properties (Opzionale, per comodità nel backend) ---
     @property
     def is_default_route(self) -> bool:
         return self.destination.startswith("0.0.0.0")
 
+    # Se install_date è None, non possiamo convertirlo in data
     @property
-    def install_datetime(self) -> datetime:
-        return datetime.fromtimestamp(self.install_date)
+    def install_datetime(self) -> Optional[datetime]:
+        if self.install_date:
+            return datetime.fromtimestamp(self.install_date)
+        return None
 
     class Config:
         # Permette di usare sia route.ip_mask che route.destination
