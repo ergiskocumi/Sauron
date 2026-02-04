@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
-from domain.models import Route, NetworkInterface
+from domain.models import Route, NetworkInterface, Vdom
 
 class FirewallRepository(ABC):
     """
@@ -34,5 +34,15 @@ class FirewallRepository(ABC):
 
         Returns:
             List[NetworkInterface]: Lista di oggetti NetworkInterface con IP e maschere separate.
+        """
+        pass
+    
+    @abstractmethod
+    def get_vdoms(self)-> List[Vdom]:
+        """
+        Recupera la lista dei VDOM configurati sul firewall.
+        
+        Returns:
+            List[Vdom]: Lista di oggetti Vdom.
         """
         pass
