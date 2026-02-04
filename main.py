@@ -7,6 +7,8 @@ from core.config import settings
 async def main():
     print(f"\n{'='*60}")
     print(f"📡 SAURON (ASYNC CLI) - NETWORK DISCOVERY")
+    print(f"🔖 Version: {settings.app_version}")
+    print(f"🔖 API Version: {settings.api_version}")
     print(f"🎯 Target IP: {settings.fortigate_ip}")
     print(f"{'='*60}\n")
 
