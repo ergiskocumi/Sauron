@@ -11,12 +11,14 @@ Comandi:
     sauron topology - Mostra topologia dallo snapshot
     sauron path     - Simula percorso pacchetto
     sauron info     - Mostra informazioni snapshot
+    sauron demo     - Genera uno snapshot demo offline
 
 Esempi:
     python main.py scan -o network.snapshot
     python main.py topology -s network.snapshot
     python main.py path -s network.snapshot --src fw1:root --dst 10.0.0.5
     python main.py info -s network.snapshot
+    python main.py demo -o demo.snapshot
 """
 
 import asyncio
@@ -45,6 +47,7 @@ from application.services.topology_service import TopologyService, interfaces_fr
 from application.services.pathfinder_service import PathfinderService
 from application.services.resolver_service import ResolverService, ResolverError
 from application.presenters.console_presenter import ConsolePresenter
+from application.presenters.graphviz_presenter import GraphvizPresenter
 
 
 def setup_logging(debug: bool = False) -> None:
@@ -408,6 +411,15 @@ def cmd_path(args: argparse.Namespace) -> int:
 
     presenter.print_path_result(result)
 
+    if args.dot:
+        dot_presenter = GraphvizPresenter()
+        title = f"{result.source_node.node_key} -> {result.target_ip}"
+        dot_content = dot_presenter.build_path_graph(result, title=title)
+        dot_path = Path(args.dot)
+        dot_path.parent.mkdir(parents=True, exist_ok=True)
+        dot_path.write_text(dot_content, encoding="utf-8")
+        print(f"Graphviz salvato: {dot_path}")
+
     return 0 if result.is_reachable else 1
 
 
@@ -459,6 +471,134 @@ def cmd_info(args: argparse.Namespace) -> int:
 
 
 # =============================================================================
+# DEMO COMMAND
+# =============================================================================
+
+def _build_demo_snapshot() -> NetworkSnapshot:
+    """Costruisce uno snapshot demo offline per test rapidi."""
+    interfaces = [
+        InterfaceRecord(
+            device_id="fw1",
+            vdom="root",
+            iface_name="port1",
+            ip=InterfaceRecord._ip_to_int("192.168.1.1"),
+            prefix_len=24,
+            is_up=True,
+        ),
+        InterfaceRecord(
+            device_id="fw2",
+            vdom="root",
+            iface_name="port1",
+            ip=InterfaceRecord._ip_to_int("192.168.1.2"),
+            prefix_len=24,
+            is_up=True,
+        ),
+        InterfaceRecord(
+            device_id="fw2",
+            vdom="root",
+            iface_name="port2",
+            ip=InterfaceRecord._ip_to_int("10.0.0.1"),
+            prefix_len=24,
+            is_up=True,
+        ),
+        InterfaceRecord(
+            device_id="fw3",
+            vdom="root",
+            iface_name="port1",
+            ip=InterfaceRecord._ip_to_int("10.0.0.2"),
+            prefix_len=24,
+            is_up=True,
+        ),
+    ]
+
+    topology = TopologyService().build_topology(interfaces)
+
+    routing_tables = {
+        "fw1:root": [
+            Route(
+                ip_mask="192.168.1.0/24",
+                gateway="0.0.0.0",
+                interface="port1",
+                type="connected",
+                distance=0,
+                metric=0,
+            ),
+            Route(
+                ip_mask="10.0.0.0/24",
+                gateway="192.168.1.2",
+                interface="port1",
+                type="static",
+                distance=10,
+                metric=0,
+            ),
+        ],
+        "fw2:root": [
+            Route(
+                ip_mask="192.168.1.0/24",
+                gateway="0.0.0.0",
+                interface="port1",
+                type="connected",
+                distance=0,
+                metric=0,
+            ),
+            Route(
+                ip_mask="10.0.0.0/24",
+                gateway="0.0.0.0",
+                interface="port2",
+                type="connected",
+                distance=0,
+                metric=0,
+            ),
+        ],
+        "fw3:root": [
+            Route(
+                ip_mask="10.0.0.0/24",
+                gateway="0.0.0.0",
+                interface="port1",
+                type="connected",
+                distance=0,
+                metric=0,
+            )
+        ],
+    }
+
+    metadata = [
+        FirewallMetadata(device_id="fw1", host="10.0.0.10:443", vdoms=["root"]),
+        FirewallMetadata(device_id="fw2", host="10.0.0.20:443", vdoms=["root"]),
+        FirewallMetadata(device_id="fw3", host="10.0.0.30:443", vdoms=["root"]),
+    ]
+
+    return NetworkSnapshot(
+        topology=topology,
+        routing_tables=routing_tables,
+        interfaces=interfaces,
+        firewalls_metadata=metadata,
+        timestamp=datetime.now(),
+    )
+
+
+def cmd_demo(args: argparse.Namespace) -> int:
+    """Comando DEMO: genera uno snapshot offline di esempio."""
+    setup_logging(debug=args.debug)
+
+    snapshot = _build_demo_snapshot()
+    repository = SnapshotRepository(compress=not args.no_compress)
+    output_path = repository.save(snapshot, Path(args.output))
+
+    print(f"\n{'='*60}")
+    print("  DEMO SNAPSHOT")
+    print(f"{'='*60}")
+    print(f"\n  Output: {output_path}")
+    print(f"  Nodi:       {snapshot.total_nodes}")
+    print(f"  Link:       {snapshot.total_links}")
+    print(f"  Rotte:      {snapshot.total_routes}")
+    print(f"  Interfacce: {snapshot.total_interfaces}")
+    print(f"\n{'='*60}\n")
+
+    return 0
+
+
+# =============================================================================
 # CLI PARSER
 # =============================================================================
 
@@ -474,12 +614,14 @@ Comandi:
   topology  Mostra topologia dallo snapshot
   path      Simula percorso pacchetto
   info      Mostra informazioni snapshot
+  demo      Genera uno snapshot demo offline
 
 Esempi:
   %(prog)s scan -o network.snapshot
   %(prog)s topology -s network.snapshot
   %(prog)s path -s network.snapshot --src fw1:root --dst 10.0.0.5
   %(prog)s info -s network.snapshot
+  %(prog)s demo -o demo.snapshot
         """,
     )
 
@@ -566,6 +708,12 @@ Esempi:
         default=64,
         help="TTL massimo (default: 64)",
     )
+    path_parser.add_argument(
+        "--dot",
+        type=str,
+        default=None,
+        help="Path output file .dot (Graphviz)",
+    )
     path_parser.set_defaults(func=cmd_path)
 
     # INFO subcommand
@@ -580,6 +728,24 @@ Esempi:
         help="Path allo snapshot",
     )
     info_parser.set_defaults(func=cmd_info)
+
+    # DEMO subcommand
+    demo_parser = subparsers.add_parser(
+        "demo",
+        help="Genera uno snapshot demo offline",
+    )
+    demo_parser.add_argument(
+        "-o", "--output",
+        type=str,
+        default="demo.snapshot",
+        help="Path output snapshot (default: demo.snapshot)",
+    )
+    demo_parser.add_argument(
+        "--no-compress",
+        action="store_true",
+        help="Non comprimere lo snapshot",
+    )
+    demo_parser.set_defaults(func=cmd_demo)
 
     return parser
 
