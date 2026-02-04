@@ -1,3 +1,12 @@
-env
-venv
-node_modules
+# .gitignore
+__pycache__/
+*.pyc
+.env
+.venv/
+inventory.json
+.claude/settings.local.json
+network.snapshot
+demo.snapshot
+# Generated artifacts
+*.dot
+*.png
