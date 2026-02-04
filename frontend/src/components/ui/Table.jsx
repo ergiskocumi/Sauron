@@ -8,7 +8,7 @@
 export const Table = ({ children, className = '' }) => {
   return (
     <div className="overflow-x-auto">
-      <table className={`min-w-full divide-y divide-gray-200 ${className}`}>
+      <table className={`min-w-full divide-y divide-slate-100 ${className}`}>
         {children}
       </table>
     </div>
@@ -17,7 +17,7 @@ export const Table = ({ children, className = '' }) => {
 
 export const TableHeader = ({ children }) => {
   return (
-    <thead className="bg-gray-50">
+    <thead className="bg-slate-50/50">
       <tr>{children}</tr>
     </thead>
   );
@@ -26,7 +26,7 @@ export const TableHeader = ({ children }) => {
 export const TableHeaderCell = ({ children, className = '' }) => {
   return (
     <th
-      className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${className}`}
+      className={`px-8 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] ${className}`}
     >
       {children}
     </th>
@@ -34,16 +34,16 @@ export const TableHeaderCell = ({ children, className = '' }) => {
 };
 
 export const TableBody = ({ children }) => {
-  return <tbody className="bg-white divide-y divide-gray-200">{children}</tbody>;
+  return <tbody className="bg-white divide-y divide-slate-50">{children}</tbody>;
 };
 
 export const TableRow = ({ children, className = '' }) => {
-  return <tr className={`hover:bg-gray-50 ${className}`}>{children}</tr>;
+  return <tr className={`hover:bg-slate-50/80 transition-colors ${className}`}>{children}</tr>;
 };
 
 export const TableCell = ({ children, className = '' }) => {
   return (
-    <td className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${className}`}>
+    <td className={`px-8 py-5 whitespace-nowrap text-sm text-slate-600 font-medium ${className}`}>
       {children}
     </td>
   );

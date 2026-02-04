@@ -1,113 +1,216 @@
-/**
- * LAYOUT COMPONENT - Application Shell
- *
- * Layout principale dell'applicazione con Sidebar e area contenuti.
- */
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Network, 
+  Database, 
+  Map as MapIcon, 
+  Zap, 
+  Settings, 
+  ChevronRight,
+  Shield,
+  Activity,
+  Bell,
+  Search,
+  User
+} from 'lucide-react';
+import { cn } from '../lib/utils';
 
-export const Layout = ({ children }) => {
+const SIDEBAR_TRANSITION = { type: "spring", stiffness: 300, damping: 30 };
+
+export const Layout = ({ children, activeTab, setActiveTab }) => {
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#F8FAFC] flex font-sans text-slate-900 overflow-x-hidden">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-gray-900 text-white shadow-lg">
-        <div className="p-6">
-          <div className="flex items-center gap-3 mb-8">
-            <svg
-              className="w-8 h-8 text-blue-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-              />
-            </svg>
-            <div>
-              <h1 className="text-xl font-bold">Sauron</h1>
-              <p className="text-xs text-gray-400">Network Discovery</p>
+      <motion.aside
+        onMouseEnter={() => setIsSidebarHovered(true)}
+        onMouseLeave={() => setIsSidebarHovered(false)}
+        initial={false}
+        animate={{ width: isSidebarHovered ? 280 : 88 }}
+        transition={SIDEBAR_TRANSITION}
+        className="fixed left-0 top-0 h-full bg-slate-900 text-white shadow-2xl z-50 flex flex-col overflow-hidden border-r border-slate-800"
+      >
+        {/* Logo Section */}
+        <div className="p-6 flex items-center gap-4 h-24">
+          <div className="bg-blue-500 p-2.5 rounded-xl shadow-lg shadow-blue-500/30 flex-shrink-0">
+            <Shield className="w-6 h-6 text-white" />
+          </div>
+          <AnimatePresence>
+            {isSidebarHovered && (
+              <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                transition={{ duration: 0.2, delay: 0.1 }}
+                className="whitespace-nowrap"
+              >
+                <h1 className="text-xl font-bold tracking-tight text-white">Sauron</h1>
+                <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest leading-none">
+                  Network Intelligence
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 px-4 mt-4 space-y-1.5">
+          <NavItem
+            icon={<MapIcon size={22} />}
+            label="Dashboard Map"
+            active={activeTab === 'map'}
+            onClick={() => setActiveTab('map')}
+            isExpanded={isSidebarHovered}
+          />
+          <NavItem
+            icon={<Database size={22} />}
+            label="Inventory"
+            active={activeTab === 'inventory'}
+            onClick={() => setActiveTab('inventory')}
+            isExpanded={isSidebarHovered}
+          />
+          <NavItem
+            icon={<Zap size={22} />}
+            label="Path Simulation"
+            active={activeTab === 'simulation'}
+            onClick={() => setActiveTab('simulation')}
+            isExpanded={isSidebarHovered}
+          />
+          <div className="pt-4 pb-2 border-t border-slate-800 mx-2">
+            {!isSidebarHovered ? (
+              <div className="w-full flex justify-center py-2 opacity-30">
+                <div className="w-4 h-[1px] bg-slate-400" />
+              </div>
+            ) : (
+                <p className="px-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Settings</p>
+            )}
+          </div>
+          <NavItem
+            icon={<Settings size={22} />}
+            label="Configurations"
+            active={activeTab === 'settings'}
+            onClick={() => setActiveTab('settings')}
+            isExpanded={isSidebarHovered}
+          />
+        </nav>
+
+        {/* Bottom Profile */}
+        <div className="p-4 border-t border-slate-800 bg-slate-900/50">
+          <div className="flex items-center gap-3 px-2 py-2">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 border border-slate-700 flex items-center justify-center flex-shrink-0">
+              <User size={18} className="text-slate-400" />
             </div>
-          </div>
-
-          <nav className="space-y-2">
-            <NavItem
-              icon={
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
-                  />
-                </svg>
-              }
-              label="Inventario"
-              active
-            />
-            <NavItem
-              icon={
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-                  />
-                </svg>
-              }
-              label="Topologia"
-              disabled
-            />
-            <NavItem
-              icon={
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-              }
-              label="Pathfinder"
-              disabled
-            />
-          </nav>
-        </div>
-
-        <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-gray-800">
-          <div className="flex items-center gap-2 text-xs text-gray-400">
-            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-            <span>Backend Online</span>
+            <AnimatePresence>
+              {isSidebarHovered && (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2, delay: 0.1 }}
+                  className="overflow-hidden"
+                >
+                  <p className="text-sm font-semibold truncate leading-tight text-white">Admin User</p>
+                  <p className="text-[10px] text-slate-500 truncate">Sauron Operator</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
-      </aside>
+      </motion.aside>
 
-      {/* Main Content */}
-      <main className="ml-64 p-8">{children}</main>
+      {/* Main Container */}
+      <motion.div 
+        animate={{ paddingLeft: isSidebarHovered ? 280 : 88 }}
+        transition={SIDEBAR_TRANSITION}
+        className="flex-1 flex flex-col min-w-0" 
+      >
+        <div className="w-full flex-1 flex flex-col">
+          {/* Top Header */}
+          <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40">
+            <div className="h-full px-8 md:px-12 max-w-[1700px] mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-4 bg-slate-100/50 px-4 py-2 rounded-2xl border border-slate-200 min-w-[320px] md:w-96">
+                <Search className="w-4 h-4 text-slate-400" />
+                <input 
+                  type="text" 
+                  placeholder="Cerca IP, Hostname o VDOM..." 
+                  className="bg-transparent border-none outline-none text-sm w-full text-slate-600 placeholder:text-slate-400"
+                />
+              </div>
+
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 text-green-700 rounded-full border border-green-100">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  <span className="text-xs font-bold uppercase tracking-wider">System Healthy</span>
+                </div>
+                
+                <div className="relative">
+                  <button className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all">
+                    <Bell size={20} />
+                  </button>
+                  <div className="absolute top-2 right-2.5 w-2 h-2 bg-blue-500 rounded-full border-2 border-white" />
+                </div>
+              </div>
+            </div>
+          </header>
+
+          {/* Centered Content Area */}
+          <main className="flex-1 p-8 md:p-12 w-full">
+            <div className="max-w-[1700px] mx-auto w-full">
+              {children}
+            </div>
+          </main>
+        </div>
+      </motion.div>
     </div>
   );
 };
 
-const NavItem = ({ icon, label, active, disabled }) => {
-  const baseClasses =
-    'flex items-center gap-3 px-4 py-3 rounded-lg transition-colors';
-  const activeClasses = active
-    ? 'bg-blue-600 text-white'
-    : disabled
-    ? 'text-gray-500 cursor-not-allowed'
-    : 'text-gray-300 hover:bg-gray-800 hover:text-white cursor-pointer';
-
+const NavItem = ({ icon, label, active, onClick, isExpanded, disabled = false }) => {
   return (
-    <div className={`${baseClasses} ${activeClasses}`}>
-      <div className="w-5 h-5">{icon}</div>
-      <span className="text-sm font-medium">{label}</span>
-      {disabled && (
-        <span className="ml-auto text-xs bg-gray-800 px-2 py-0.5 rounded">
-          Presto
-        </span>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 group relative",
+        active 
+          ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20" 
+          : "text-slate-400 hover:text-white hover:bg-slate-800"
       )}
-    </div>
+    >
+      <div className={cn(
+        "flex-shrink-0 transition-transform duration-300",
+        active ? "scale-110" : "group-hover:scale-110"
+      )}>
+        {icon}
+      </div>
+      
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.span
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+            className="font-medium whitespace-nowrap text-sm text-left block"
+          >
+            {label}
+          </motion.span>
+        )}
+      </AnimatePresence>
+
+      {!isExpanded && (
+        <div className="absolute left-full ml-6 px-3 py-2 bg-slate-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-[100] shadow-xl border border-slate-700">
+          {label}
+        </div>
+      )}
+
+      {active && !isExpanded && (
+        <motion.div 
+          layoutId="activePill"
+          className="absolute right-0 w-1 h-6 bg-white rounded-l-full" 
+        />
+      )}
+    </button>
   );
 };

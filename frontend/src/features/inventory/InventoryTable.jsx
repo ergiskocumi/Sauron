@@ -14,6 +14,7 @@
  */
 
 import { useInventory } from '../../hooks/useInventory';
+import { cn } from '../../lib/utils';
 import {
   Card,
   CardHeader,
@@ -32,130 +33,102 @@ import {
 import { Badge } from '../../components/ui/Badge';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Alert } from '../../components/ui/Alert';
+import { RefreshCw, Server, Globe, Shield } from 'lucide-react';
 
 export const InventoryTable = () => {
   const { inventory, loading, error, refetch } = useInventory();
 
-  /**
-   * Stato: Loading
-   */
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Inventario Firewall</CardTitle>
-        </CardHeader>
-        <CardBody>
+      <Card className="animate-pulse">
+        <CardBody className="flex flex-col items-center py-20">
           <LoadingSpinner message="Caricamento inventario..." />
         </CardBody>
       </Card>
     );
   }
 
-  /**
-   * Stato: Error
-   */
   if (error) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Inventario Firewall</CardTitle>
-        </CardHeader>
-        <CardBody>
-          <Alert
-            variant="error"
-            title="Errore di Connessione"
-            message={error}
-          />
-          <div className="mt-4 flex justify-center">
-            <button
-              onClick={refetch}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Riprova
-            </button>
-          </div>
+        <CardBody className="py-20 text-center">
+          <Alert variant="error" title="Errore" message={error} />
+          <button
+            onClick={refetch}
+            className="mt-6 px-6 py-2 bg-slate-900 text-white rounded-xl font-bold"
+          >
+            Riprova
+          </button>
         </CardBody>
       </Card>
     );
   }
 
-  /**
-   * Stato: Success (con dati)
-   */
   return (
     <Card>
-      <CardHeader className="flex items-center justify-between">
+      <CardHeader className="flex items-center justify-between border-none pb-0">
         <div>
-          <CardTitle>Inventario Firewall</CardTitle>
-          <p className="text-sm text-gray-500 mt-1">
-            {inventory.length} firewall configurati
-          </p>
+          <CardTitle>Dispositivi Configurati</CardTitle>
+          <div className="flex items-center gap-2 mt-1">
+            <div className="w-2 h-2 bg-green-500 rounded-full" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              {inventory.length} Firewall Online
+            </span>
+          </div>
         </div>
         <button
           onClick={refetch}
-          className="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+          className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-2xl transition-all group"
+          title="Aggiorna Inventario"
         >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-          Ricarica
+          <RefreshCw className="w-5 h-5 group-active:rotate-180 transition-transform" />
         </button>
       </CardHeader>
 
-      <CardBody className="p-0">
+      <CardBody>
         {inventory.length === 0 ? (
           <TableEmptyState message="Nessun firewall configurato nell'inventario" />
         ) : (
           <Table>
             <TableHeader>
-              <TableHeaderCell>Firewall ID</TableHeaderCell>
-              <TableHeaderCell>Host</TableHeaderCell>
-              <TableHeaderCell>VDOM Entry</TableHeaderCell>
-              <TableHeaderCell>Stato</TableHeaderCell>
+              <TableHeaderCell>Dispositivo</TableHeaderCell>
+              <TableHeaderCell>Network Address</TableHeaderCell>
+              <TableHeaderCell>V-DOM</TableHeaderCell>
+              <TableHeaderCell>Status</TableHeaderCell>
             </TableHeader>
             <TableBody>
               {inventory.map((firewall) => (
-                <TableRow key={firewall.id}>
+                <TableRow key={firewall.id} className="group cursor-default">
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <svg
-                        className="w-5 h-5 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
-                        />
-                      </svg>
-                      <span className="font-medium">{firewall.id}</span>
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
+                        <Server size={22} />
+                      </div>
+                      <div>
+                        <div className="font-black text-slate-900 leading-tight underline decoration-blue-500/0 group-hover:decoration-blue-500/100 transition-all">
+                          {firewall.id}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">FortiGate FW</div>
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                      {firewall.host}
-                    </code>
+                    <div className="flex items-center gap-2">
+                      <Globe size={14} className="text-slate-300" />
+                      <code className="text-[12px] font-mono font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
+                        {firewall.host}
+                      </code>
+                    </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-gray-600">{firewall.entry_vdom}</span>
+                    <div className="flex items-center gap-2">
+                      <Shield size={14} className="text-slate-300" />
+                      <span className="text-slate-600 font-bold text-sm tracking-tight">{firewall.entry_vdom}</span>
+                    </div>
                   </TableCell>
                   <TableCell>
                     <Badge variant={firewall.enabled ? 'success' : 'gray'}>
-                      {firewall.enabled ? 'Abilitato' : 'Disabilitato'}
+                      {firewall.enabled ? 'Active' : 'Disabled'}
                     </Badge>
                   </TableCell>
                 </TableRow>
