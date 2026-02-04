@@ -1,95 +1,93 @@
+import asyncio
 import sys
 from infrastructure.fortigate_client import FortiGateClient
-from core.config import settings  # <--- IMPORTIAMO LA CONFIGURAZIONE
+from core.config import settings
 
-def main():
-    # 1. Feedback visivo: Stampiamo i dati caricati dalla configurazione
-    # (Tranne il token, che deve rimanere segreto!)
+# 1. Definiamo la funzione come ASINCRONA
+async def main():
     print(f"\n{'='*60}")
-    print(f"📡 SAURON - NETWORK DISCOVERY")
-    print(f"🎯 Target IP:   {settings.fortigate_ip}")
-    print(f"📂 Target VDOM: {settings.default_vdom}")
+    print(f"📡 SAURON (ASYNC CLI) - NETWORK DISCOVERY")
+    print(f"🎯 Target IP: {settings.fortigate_ip}")
     print(f"{'='*60}\n")
 
-    # 2. Inizializzazione Client
-    # Passiamo le variabili dell'oggetto 'settings' invece delle stringhe fisse
     try:
+        # Inizializziamo il client (questo è sincrono, prepara solo l'oggetto)
         client = FortiGateClient(
             ip_address=settings.fortigate_ip, 
             api_token=settings.fortigate_api_token
         )
     except Exception as e:
-        print(f"❌ Errore durante l'inizializzazione del client: {e}")
+        print(f"❌ Errore inizializzazione client: {e}")
         sys.exit(1)
 
-    print(">>> 1. Recupero Lista VDOM...")
+    # ---------------------------------------------------------
+    # FASE 1: DISCOVERY DEI VDOM
+    # ---------------------------------------------------------
+    print("🔍 Ricerca VDOM attivi...")
     try:
-        vdom_list = client.get_vdoms()
+        # 2. Usiamo AWAIT perché stiamo aspettando una risposta di rete
+        vdom_list = await client.get_vdoms()
         
-        print(f"✅ Trovati {len(vdom_list)} VDOM.")
-        print("-" * 40)
-        print(f"{'NAME (ID API)':<20} {'SHORT NAME (UI)'}")
-        print("-" * 40)
+        # Estraiamo i nomi per stamparli
+        vdom_names = [v.name for v in vdom_list]
+        print(f"✅ Trovati {len(vdom_list)} VDOM: {', '.join(vdom_names)}\n")
         
-        for v in vdom_list:
-            print(f"{v.name:<20} {v.short_name}")
-            
     except Exception as e:
-        print(f"❌ Errore: {e}")
-        
+        print(f"❌ Errore recupero VDOM: {e}")
+        sys.exit(1)
+
     # ---------------------------------------------------------
-    # 3. TEST ROUTING (Routing Table Globale/Monitor)
+    # FASE 2: ANALISI SEQUENZIALE (Routing + VLAN per ogni VDOM)
     # ---------------------------------------------------------
-    print(">>> Recupero Tabella di Routing...")
+    
+    # A. ROUTING TABLE (Globale)
+    print(f"📂 RECUPERO ROUTING TABLE (Globale)...")
     try:
-        routes = client.get_routing_table()
-        print(f"✅ Trovate {len(routes)} rotte attive.\n")
+        routes = await client.get_routing_table()
+        print(f"   ✅ Trovate {len(routes)} rotte attive.\n")
         
         if routes:
-            # Intestazione tabella
-            print(f"{'DESTINATION':<20} {'GATEWAY':<18} {'PROTO':<10} {'INTF':<15} {'METRIC'}")
-            print("-" * 75)
-            # Stampiamo le prime 15 rotte
-            for r in routes[:15]: 
-                print(f"{r.destination:<20} {r.gateway:<18} {r.protocol:<10} {r.interface:<15} {r.metric}")
-            
-            if len(routes) > 15:
-                print(f"... e altre {len(routes) - 15} rotte nascoste.")
-        print("\n")
-            
-    except Exception as e:
-        print(f"⚠️ Errore nel recupero rotte: {e}\n")
+             print(f"   {'DESTINATION':<20} {'GATEWAY':<18} {'PROTO':<10} {'INTF':<15}")
+             print(f"   {'-'*65}")
+             for r in routes[:10]:
+                 print(f"   {r.destination:<20} {r.gateway:<18} {r.protocol:<10} {r.interface:<15}")
+             if len(routes) > 10:
+                 print(f"   ... altre {len(routes)-10} nascoste.")
+        print("")
 
-    # ---------------------------------------------------------
-    # 4. TEST VLAN (Usa il VDOM definito nel .env)
-    # ---------------------------------------------------------
-    vdom_target = settings.default_vdom
-    print(f">>> Recupero VLAN (VDOM: {vdom_target})...")
-    
-    try:
-        # Usiamo il filtro server-side per scaricare solo le VLAN
-        vlans = client.get_interfaces(vdom=vdom_target, type_filter="vlan")
+    except Exception as e:
+        print(f"   ⚠️ Errore Routing: {e}\n")
+
+    # B. VLAN PER OGNI VDOM
+    for vdom in vdom_list:
+        print(f"📂 ANALISI INTERFACCE VDOM: {vdom.name.upper()}")
         
-        print(f"✅ Trovate {len(vlans)} VLAN.\n")
-        
-        if vlans:
-            print(f"{'VLAN NAME':<25} {'ID':<5} {'IP ADDRESS':<18} {'PARENT':<15} {'STATUS'}")
-            print("-" * 75)
-            
+        try:
+            # 3. Usiamo AWAIT anche qui dentro il ciclo
+            vlans = await client.get_interfaces(vdom=vdom.name, type_filter="vlan")
+
+            if not vlans:
+                print("   ℹ️  Nessuna VLAN configurata.\n")
+                continue
+
+            print(f"   ✅ Trovate {len(vlans)} VLAN:")
+            print(f"   {'-'*65}")
+            print(f"   {'NAME':<25} {'ID':<5} {'IP ADDRESS':<18} {'STATUS'}")
+            print(f"   {'-'*65}")
+
             for v in vlans:
                 status_icon = "🟢" if v.is_up else "🔴"
-                
-                # Clean Code: Gestione visualizzazione campi opzionali (None diventa stringa vuota o '-')
-                vlan_id_str = str(v.vlan_id) if v.vlan_id is not None else "-"
-                parent_str = v.parent_interface if v.parent_interface else "N/A"
-                
-                print(f"{v.name:<25} {vlan_id_str:<5} {v.ip:<18} {parent_str:<15} {status_icon}")
-    
-    except Exception as e:
-        print(f"⚠️ Errore nel recupero VLAN: {e}")
+                vlan_id = str(v.vlan_id) if v.vlan_id is not None else "-"
+                print(f"   {v.name:<25} {vlan_id:<5} {v.ip:<18} {status_icon}")
+            print("")
 
-    print(f"\n{'='*60}")
-    print("🏁 Scansione completata.")
+        except Exception as e:
+            print(f"   ⚠️  Errore nel VDOM {vdom.name}: {e}\n")
+
+    print(f"{'='*60}")
+    print("🏁 Scansione Completata.")
 
 if __name__ == "__main__":
-    main()
+    # 4. ENTRY POINT ASINCRONO
+    # Questo comando crea il "loop" che permette di eseguire le funzioni async
+    asyncio.run(main())

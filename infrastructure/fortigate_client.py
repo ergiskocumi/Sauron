@@ -1,5 +1,4 @@
-import requests
-import urllib3
+import httpx
 from typing import List, Dict, Any, Optional
 from pydantic import ValidationError
 
@@ -7,129 +6,107 @@ from pydantic import ValidationError
 from domain.ports import FirewallRepository
 from domain.models import Route, NetworkInterface, Vdom
 
-# Disabilitiamo i warning per i certificati SSL self-signed (tipico nelle intranet)
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 class FortiGateClient(FirewallRepository):
     """
-    Adapter concreto che implementa la comunicazione con FortiOS via REST API.
-    Trasforma i JSON grezzi ("sporchi") in oggetti di Dominio puliti.
+    Adapter ASINCRONO che implementa la comunicazione con FortiOS via REST API.
+    Usa httpx per non bloccare l'esecuzione durante l'attesa della rete.
     """
 
     def __init__(self, ip_address: str, api_token: str):
         """
-        Inizializza la sessione HTTP.
+        Configurazione base. Non apriamo sessioni qui, usiamo il context manager
+        per ogni richiesta (o gruppo di richieste) per sicurezza e pulizia.
         """
         self.base_url = f"https://{ip_address}/api/v2"
         self.headers = {
             'Authorization': f'Bearer {api_token}',
             'Content-Type': 'application/json'
         }
-        
-        # Ottimizzazione: Usiamo una Session per riutilizzare la connessione TCP (Keep-Alive)
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
-        self.session.verify = False # In produzione, punta al file .pem della CA aziendale
+        # Disabilitiamo la verifica SSL (equivalente a verify=False di requests)
+        self.verify_ssl = False
 
-    def _make_request(self, endpoint: str, params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    async def _make_request(self, endpoint: str, params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """
-        Metodo helper privato per gestire le chiamate HTTP, gli errori e l'estrazione dei risultati.
-        Rispetta il principio DRY (Don't Repeat Yourself).
+        Motore Asincrono: Gestisce la chiamata HTTP.
         """
         full_url = f"{self.base_url}{endpoint}"
         
-        try:
-            response = self.session.get(full_url, params=params, timeout=10)
-            response.raise_for_status() # Solleva eccezione se status code è 4xx o 5xx
-            
-            data = response.json()
-            
-            # Pattern Matching: Fortigate restituisce i dati o in 'results' (lista) o direttamente
-            if 'results' in data:
-                # Se 'results' è un dizionario (es. monitor interfaces), lo convertiamo in lista
-                if isinstance(data['results'], dict):
-                    return list(data['results'].values())
-                return data['results']
-            
-            return []
+        # httpx.AsyncClient è l'equivalente moderno di requests.Session
+        async with httpx.AsyncClient(verify=self.verify_ssl, timeout=10.0) as client:
+            try:
+                # 'await' dice a Python: "Mentre aspetti la risposta del firewall,
+                # vai pure avanti a fare altro (es. gestire un'altra richiesta)"
+                response = await client.get(full_url, headers=self.headers, params=params)
+                response.raise_for_status()
+                
+                data = response.json()
+                
+                # Gestione standard del formato dati Fortigate
+                if 'results' in data:
+                    if isinstance(data['results'], dict):
+                        return list(data['results'].values())
+                    return data['results']
+                
+                return []
 
-        except requests.exceptions.RequestException as e:
-            print(f"[ERRORE DI RETE] Impossibile contattare {full_url}: {e}")
-            return []
-        except ValueError:
-            print(f"[ERRORE JSON] Risposta non valida dal firewall.")
-            return []
+            except httpx.HTTPStatusError as e:
+                print(f"[HTTP ERROR] {e.response.status_code} su {full_url}")
+                return []
+            except httpx.RequestError as e:
+                print(f"[NET ERROR] Connessione fallita verso {full_url}: {e}")
+                return []
+            except Exception as e:
+                print(f"[GENERIC ERROR] {e}")
+                return []
 
     # --- IMPLEMENTAZIONE DEL CONTRATTO (Ports) ---
+    # Nota: Tutti i metodi ora devono avere 'async def' e usare 'await'
 
-    def get_routing_table(self) -> List[Route]:
-        """
-        Scarica la Routing Table attiva e la converte in oggetti Route.
-        """
+    async def get_routing_table(self) -> List[Route]:
+        """Scarica la Routing Table (Asincrono)."""
+        # Spesso la routing table globale richiede il contesto root
         endpoint = "/monitor/router/ipv4"
-        raw_data = self._make_request(endpoint)
+        raw_data = await self._make_request(endpoint, params={'vdom': 'root'})
         
         clean_routes = []
         for item in raw_data:
             try:
-                # La magia di Pydantic: disimballiamo il dizionario (**item)
-                # Il modello cercherà i campi usando gli 'alias' definiti (es. ip_mask -> destination)
                 route = Route(**item)
                 clean_routes.append(route)
             except ValidationError as e:
-                # Logghiamo l'errore ma non blocchiamo tutto il processo per una sola rotta corrotta
-                print(f"[WARN] Impossibile parsare la rotta verso {item.get('ip_mask', 'unknown')}: {e}")
-        
+                # Logghiamo l'errore ma continuiamo
+                pass 
         return clean_routes
 
-    def get_interfaces(self, vdom: str = "root", type_filter: Optional[str] = None) -> List[NetworkInterface]:
-        """
-        Scarica le interfacce dal CMDB, applicando filtri VDOM e Tipo.
-        """
+    async def get_interfaces(self, vdom: str = "root", type_filter: Optional[str] = None) -> List[NetworkInterface]:
+        """Scarica le interfacce (Asincrono)."""
         endpoint = "/cmdb/system/interface"
         
-        # Costruiamo i parametri per la query string
         params = {'vdom': vdom}
-        
-        # Applicazione del filtro server-side (Ottimizzazione: scarichiamo meno dati)
         if type_filter:
             params['filter'] = f"type=={type_filter}"
 
-        raw_data = self._make_request(endpoint, params=params)
+        raw_data = await self._make_request(endpoint, params=params)
         
         clean_interfaces = []
         for item in raw_data:
             try:
-                # Pydantic pulirà l'IP (split con mask), convertirà lo status in bool, ecc.
-                # Nota: item.get('interface') verrà mappato su parent_interface grazie all'alias nel Model
                 interface = NetworkInterface(**item)
                 clean_interfaces.append(interface)
-            except ValidationError as e:
-                # Utile per debuggare se il firewall manda dati strani
-                print(f"[WARN] Impossibile parsare l'interfaccia {item.get('name', 'unknown')}: {e}")
-        
+            except ValidationError:
+                pass
         return clean_interfaces
-    
-    def get_vdoms(self) -> List[Vdom]:
-        """
-        Scarica la lista dei VDOM dal firewall.
-        """
+
+    async def get_vdoms(self) -> List[Vdom]:
+        """Scarica la lista VDOM (Asincrono)."""
         endpoint = "/cmdb/system/vdom"
-        
-        # Facciamo la richiesta. 
-        # Usiamo 'vdom=root' per sicurezza, anche se il tuo admin user 
-        # sembra avere permessi globali anche da altri vdom.
-        raw_data = self._make_request(endpoint, params={'vdom': 'root'})
+        raw_data = await self._make_request(endpoint, params={'vdom': 'root'})
         
         clean_vdoms = []
         for item in raw_data:
             try:
-                # Pydantic farà la magia:
-                # Mapperà item['name'] -> vdom.name
-                # Mapperà item['short-name'] -> vdom.short_name (grazie all'alias)
                 vdom = Vdom(**item)
                 clean_vdoms.append(vdom)
-            except ValidationError as e:
-                print(f"[WARN] Errore parsing VDOM {item.get('name', '?')}: {e}")
-        
+            except ValidationError:
+                pass
         return clean_vdoms
