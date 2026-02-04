@@ -121,6 +121,13 @@ class Vdom(BaseModel):
     class Config:
         populate_by_name = True
     
-     
-# quelli che hanno un alias è fatto a posta per chè pydantic può andare a leggere direttamente da json con quei nomi
-# però io leggo DESTINATION ad esempio che è più comodo per un essere umano
+
+class FirewallConfig(BaseModel):
+    """
+    Rappresenta la configurazione di connessione a un singolo Firewall.
+    Verrà caricato dal file inventory.json.
+    """
+    id: str = Field(..., description="ID univoco mnemonico (es. 'fw-milano', 'fw-roma')")
+    host: str = Field(..., description="IP e Porta (es. '10.101.201.1:10443')")
+    token: str = Field(..., description="API Token per l'autenticazione")
+    default_vdom: str = Field("root", description="VDOM di default da usare per le scansioni globali")
