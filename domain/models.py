@@ -43,8 +43,7 @@ class Route(BaseModel):
         # Permette di usare sia route.ip_mask che route.destination
         populate_by_name = True
         
-        
-
+    
 # --- ENTITÀ 2: INTERFACCIA (Nuova e Dettagliata) ---
 class NetworkInterface(BaseModel):
     """
@@ -105,6 +104,23 @@ class NetworkInterface(BaseModel):
         # Questo permette di creare l'oggetto sia usando i nomi JSON (alias) 
         # sia i nomi Python (es. parent_interface)
         populate_by_name = True     
-        
+
+
+class Vdom(BaseModel):
+    """
+    Rappresenta un Virtual Domain (VDOM) nel Fortigate. 
+    Basato sull'endpoint /cmdb/system/vdom
+    """
+    name: str = Field(...,description="Nome del VDOM")
+    short_name: str = Field(..., alias="short-name", description="Nome breve per visualizzazione UI")
+    
+    @property
+    def is_root(self) -> bool:
+        return self.name.lower() == "root"
+    
+    class Config:
+        populate_by_name = True
+    
+     
 # quelli che hanno un alias è fatto a posta per chè pydantic può andare a leggere direttamente da json con quei nomi
 # però io leggo DESTINATION ad esempio che è più comodo per un essere umano
