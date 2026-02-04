@@ -130,4 +130,4 @@ class FirewallConfig(BaseModel):
     id: str = Field(..., description="ID univoco mnemonico (es. 'fw-milano', 'fw-roma')")
     host: str = Field(..., description="IP e Porta (es. '10.101.201.1:10443')")
     token: str = Field(..., description="API Token per l'autenticazione")
-    default_vdom: str = Field("root", description="VDOM di default da usare per le scansioni globali")
+    entry_vdom: str = Field("root", description="VDOM di gestione per l'accesso iniziale")
