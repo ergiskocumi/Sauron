@@ -12,6 +12,7 @@ Comandi:
     sauron path     - Simula percorso pacchetto
     sauron info     - Mostra informazioni snapshot
     sauron demo     - Genera uno snapshot demo offline
+    sauron graphviz - Verifica e configura Graphviz (dot)
 
 Esempi:
     python main.py scan -o network.snapshot
@@ -19,11 +20,15 @@ Esempi:
     python main.py path -s network.snapshot --src fw1:root --dst 10.0.0.5
     python main.py info -s network.snapshot
     python main.py demo -o demo.snapshot
+    python main.py graphviz --set-env
 """
 
 import asyncio
 import argparse
 import logging
+import os
+import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -399,6 +404,18 @@ def cmd_path(args: argparse.Namespace) -> int:
         presenter.print_resolver_error(exc)
         return 1
 
+    ingress_interface = None
+    if args.ingress:
+        try:
+            ingress_interface = _resolve_ingress_interface(
+                start_node=start_node,
+                interfaces=snapshot.interfaces,
+                ingress_spec=args.ingress,
+            )
+        except ValueError as exc:
+            print(f"ERRORE: {exc}")
+            return 1
+
     # Pathfinding
     pathfinder = PathfinderService()
     result = pathfinder.find_path(
@@ -407,18 +424,17 @@ def cmd_path(args: argparse.Namespace) -> int:
         start_node=start_node,
         target_ip=target_ip,
         max_ttl=args.ttl,
+        initial_ingress=ingress_interface,
     )
 
     presenter.print_path_result(result)
 
-    if args.dot:
-        dot_presenter = GraphvizPresenter()
-        title = f"{result.source_node.node_key} -> {result.target_ip}"
-        dot_content = dot_presenter.build_path_graph(result, title=title)
-        dot_path = Path(args.dot)
-        dot_path.parent.mkdir(parents=True, exist_ok=True)
-        dot_path.write_text(dot_content, encoding="utf-8")
-        print(f"Graphviz salvato: {dot_path}")
+    _export_graphviz(
+        result=result,
+        dot_path=Path(args.dot) if args.dot else None,
+        png_path=Path(args.png) if args.png else None,
+        dot_exe_override=args.dot_exe,
+    )
 
     return 0 if result.is_reachable else 1
 
@@ -599,6 +615,163 @@ def cmd_demo(args: argparse.Namespace) -> int:
 
 
 # =============================================================================
+# GRAPHVIZ COMMAND
+# =============================================================================
+
+def cmd_graphviz(args: argparse.Namespace) -> int:
+    """Comando GRAPHVIZ: verifica e configura dot."""
+    dot_exe = _find_dot_executable(args.dot_exe)
+
+    print(f"\n{'='*60}")
+    print("  GRAPHVIZ CHECK")
+    print(f"{'='*60}")
+
+    if not dot_exe:
+        print("\n  dot non trovato.")
+        print("  Suggerimenti:")
+        print("  - Installa Graphviz oppure specifica --dot-exe")
+        print("  - Imposta GRAPHVIZ_DOT con il path completo")
+        print(f"\n{'='*60}\n")
+        return 1
+
+    print(f"\n  dot trovato: {dot_exe}")
+
+    if args.set_env:
+        _set_graphviz_env(dot_exe)
+
+    print(f"\n{'='*60}\n")
+    return 0
+
+
+def _resolve_ingress_interface(
+    start_node: "Node",
+    interfaces: List[InterfaceRecord],
+    ingress_spec: str,
+) -> str:
+    """Valida l'interfaccia di ingresso per il nodo sorgente."""
+    label = ingress_spec.strip()
+    if not label:
+        raise ValueError("Interfaccia di ingresso vuota.")
+
+    if label.lower() in ("local", "self"):
+        return "LOCAL"
+
+    candidates = [
+        iface.iface_name
+        for iface in interfaces
+        if iface.node.node_key == start_node.node_key
+    ]
+
+    if not candidates:
+        return label
+
+    for name in candidates:
+        if name == label:
+            return name
+
+    for name in candidates:
+        if name.lower() == label.lower():
+            return name
+
+    raise ValueError(
+        "Interfaccia di ingresso non trovata. "
+        f"Opzioni disponibili: {', '.join(sorted(candidates))}"
+    )
+
+
+def _export_graphviz(
+    result: "PathResult",
+    dot_path: Path | None,
+    png_path: Path | None,
+    dot_exe_override: str | None,
+) -> None:
+    """Esporta il percorso in formato DOT/PNG se richiesto."""
+    if not dot_path and not png_path:
+        return
+
+    presenter = GraphvizPresenter()
+    title = f"{result.source_node.node_key} -> {result.target_ip}"
+    dot_content = presenter.build_path_graph(result, title=title)
+
+    if dot_path:
+        dot_path.parent.mkdir(parents=True, exist_ok=True)
+        dot_path.write_text(dot_content, encoding="utf-8")
+        print(f"Graphviz salvato: {dot_path}")
+
+    if png_path:
+        png_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if dot_path is None:
+            dot_path = png_path.with_suffix(".dot")
+            dot_path.write_text(dot_content, encoding="utf-8")
+            print(f"Graphviz salvato: {dot_path}")
+
+        dot_exe = _find_dot_executable(dot_exe_override)
+        if not dot_exe:
+            print(
+                "ATTENZIONE: Graphviz 'dot' non trovato, salto rendering PNG. "
+                "Usa --dot-exe o imposta GRAPHVIZ_DOT."
+            )
+            return
+
+        subprocess.run(
+            [dot_exe, "-Tpng", str(dot_path), "-o", str(png_path)],
+            check=True,
+        )
+        print(f"PNG salvato: {png_path}")
+
+
+def _find_dot_executable(explicit_path: str | None) -> str | None:
+    """Trova l'eseguibile Graphviz dot con fallback su path comuni."""
+    if explicit_path:
+        path = Path(explicit_path)
+        if path.exists():
+            return str(path)
+
+    env_path = os.getenv("GRAPHVIZ_DOT")
+    if env_path:
+        path = Path(env_path)
+        if path.exists():
+            return str(path)
+
+    dot_path = shutil.which("dot")
+    if dot_path:
+        return dot_path
+
+    candidates = [
+        Path(r"C:\Program Files\Graphviz\bin\dot.exe"),
+        Path(r"C:\Program Files (x86)\Graphviz\bin\dot.exe"),
+    ]
+
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+
+    for base in (Path(r"C:\Program Files"), Path(r"C:\Program Files (x86)")):
+        if base.exists():
+            for candidate in base.glob("Graphviz*/bin/dot.exe"):
+                return str(candidate)
+
+    return None
+
+
+def _set_graphviz_env(dot_exe: str) -> None:
+    """Imposta GRAPHVIZ_DOT come variabile d'ambiente utente."""
+    try:
+        subprocess.run(
+            ["setx", "GRAPHVIZ_DOT", dot_exe],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        print("  GRAPHVIZ_DOT impostato. Riavvia il terminale per renderlo attivo.")
+    except FileNotFoundError:
+        print("  setx non disponibile. Imposta GRAPHVIZ_DOT manualmente.")
+    except subprocess.CalledProcessError as exc:
+        print(f"  Impossibile impostare GRAPHVIZ_DOT: {exc}")
+
+
+# =============================================================================
 # CLI PARSER
 # =============================================================================
 
@@ -615,6 +788,7 @@ Comandi:
   path      Simula percorso pacchetto
   info      Mostra informazioni snapshot
   demo      Genera uno snapshot demo offline
+  graphviz  Verifica e configura Graphviz (dot)
 
 Esempi:
   %(prog)s scan -o network.snapshot
@@ -622,6 +796,7 @@ Esempi:
   %(prog)s path -s network.snapshot --src fw1:root --dst 10.0.0.5
   %(prog)s info -s network.snapshot
   %(prog)s demo -o demo.snapshot
+  %(prog)s graphviz --set-env
         """,
     )
 
@@ -703,6 +878,12 @@ Esempi:
         help="IP destinazione",
     )
     path_parser.add_argument(
+        "--ingress",
+        type=str,
+        default=None,
+        help="Interfaccia di ingresso per il primo hop (default: LOCAL)",
+    )
+    path_parser.add_argument(
         "--ttl",
         type=int,
         default=64,
@@ -713,6 +894,18 @@ Esempi:
         type=str,
         default=None,
         help="Path output file .dot (Graphviz)",
+    )
+    path_parser.add_argument(
+        "--png",
+        type=str,
+        default=None,
+        help="Path output file .png (richiede Graphviz)",
+    )
+    path_parser.add_argument(
+        "--dot-exe",
+        type=str,
+        default=None,
+        help="Path esplicito all'eseguibile dot (Graphviz)",
     )
     path_parser.set_defaults(func=cmd_path)
 
@@ -746,6 +939,24 @@ Esempi:
         help="Non comprimere lo snapshot",
     )
     demo_parser.set_defaults(func=cmd_demo)
+
+    # GRAPHVIZ subcommand
+    graphviz_parser = subparsers.add_parser(
+        "graphviz",
+        help="Verifica e configura Graphviz (dot)",
+    )
+    graphviz_parser.add_argument(
+        "--dot-exe",
+        type=str,
+        default=None,
+        help="Path esplicito all'eseguibile dot (Graphviz)",
+    )
+    graphviz_parser.add_argument(
+        "--set-env",
+        action="store_true",
+        help="Imposta GRAPHVIZ_DOT con il path trovato",
+    )
+    graphviz_parser.set_defaults(func=cmd_graphviz)
 
     return parser
 

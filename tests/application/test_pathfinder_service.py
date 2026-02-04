@@ -282,6 +282,9 @@ class TestPathfinderService:
         assert result.status == PathStatus.REACHED
         # fw1 -> fw2 (forward) -> fw2 reaches via connected
         assert result.total_hops >= 2
+        # Hop 2 ingress should be fw2 port1 (gateway IP on 192.168.1.0/24)
+        if result.total_hops >= 2:
+            assert result.hops[1].ingress_interface == "port1"
 
     def test_no_route_drops_packet(
         self,

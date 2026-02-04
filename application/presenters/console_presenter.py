@@ -45,8 +45,13 @@ class ConsolePresenter:
             for i, hop in enumerate(result.hops, 1):
                 print(f"  {i}. {hop.node.node_key}")
 
-                if hop.egress_interface:
-                    print(f"     Uscita: {hop.egress_interface}")
+                ingress_label = hop.ingress_interface
+                if not ingress_label:
+                    ingress_label = "LOCAL" if i == 1 else "N/A"
+                print(f"     Ingresso: {ingress_label}")
+
+                egress_label = hop.egress_interface or "N/A"
+                print(f"     Uscita: {egress_label}")
 
                 if hop.matched_route_destination:
                     gw = hop.matched_route_gateway or "direct"

@@ -62,6 +62,9 @@ Regole di risoluzione sorgente:
 Opzioni utili:
 - `--ttl 32`: imposta il TTL massimo (hop limit).
 - `--dot output.dot`: esporta il percorso in formato Graphviz DOT.
+- `--png output.png`: esporta direttamente PNG (richiede Graphviz).
+- `--ingress port5`: forza l'interfaccia di ingresso del primo hop (default: LOCAL).
+- `--dot-exe C:\Path\dot.exe`: usa un eseguibile dot specifico.
 
 Esempio DOT:
 ```
@@ -71,6 +74,28 @@ venv\Scripts\python.exe main.py path -s network.snapshot --src fw1 --dst 10.0.0.
 Se hai Graphviz installato, puoi renderizzare il DOT (esempio):
 ```
 dot -Tpng path.dot -o path.png
+```
+
+Esempio PNG diretto:
+```
+venv\Scripts\python.exe main.py path -s network.snapshot --src fw1 --dst 10.0.0.5 --png path.png
+```
+
+Se `dot` non e' nel PATH, puoi passare il path esplicito:
+```
+venv\Scripts\python.exe main.py path -s network.snapshot --src fw1 --dst 10.0.0.5 --png path.png --dot-exe "C:\Program Files\Graphviz\bin\dot.exe"
+```
+
+### 6) graphviz
+Verifica la presenza di Graphviz e (opzionalmente) imposta `GRAPHVIZ_DOT`.
+
+```
+venv\Scripts\python.exe main.py graphviz
+```
+
+Per salvare automaticamente il path trovato:
+```
+venv\Scripts\python.exe main.py graphviz --set-env
 ```
 
 ## Formato inventory.json
@@ -114,6 +139,12 @@ venv\Scripts\python.exe main.py scan --no-compress -o network.snapshot
 
 - La simulazione e' basata sul routing path. Il NAT non e' considerato (V1).
 - IPv6 non e' supportato nella simulazione attuale.
+
+## Output del path
+
+Ogni hop mostra:
+- `Ingresso`: interfaccia di ingresso (per il primo hop e' `LOCAL`).
+- `Uscita`: interfaccia di uscita decisa dal routing.
 
 ## Troubleshooting
 

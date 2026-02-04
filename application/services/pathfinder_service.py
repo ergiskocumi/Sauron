@@ -55,6 +55,7 @@ class PathfinderService:
         start_node: Node,
         target_ip: str,
         max_ttl: int = 64,
+        initial_ingress: Optional[str] = None,
     ) -> PathResult:
         """
         Simula il percorso di un pacchetto dalla sorgente alla destinazione.
@@ -87,7 +88,7 @@ class PathfinderService:
         visited: Set[str] = set()
         ttl = max_ttl
         hops: List[HopResult] = []
-        ingress_interface: Optional[str] = None
+        ingress_interface: Optional[str] = initial_ingress
 
         while ttl > 0:
             node_key = current_node.node_key
@@ -447,7 +448,7 @@ class PathfinderService:
         for neighbor_key, link in neighbors:
             # Check if gateway IP belongs to any interface in this link
             for iface in link.interfaces:
-                if iface.ip == gateway_ip:
+                if iface.ip == gateway_ip and iface.node.node_key == neighbor_key:
                     neighbor_node = topology.get_node(neighbor_key)
                     if neighbor_node is not None:
                         return (neighbor_node, iface.iface_name)
