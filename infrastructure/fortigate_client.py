@@ -5,7 +5,7 @@ from pydantic import ValidationError
 
 # Importiamo il Contratto (Port) e le Entità (Domain)
 from domain.ports import FirewallRepository
-from domain.models import Route, NetworkInterface
+from domain.models import Route, NetworkInterface, Vdom
 
 # Disabilitiamo i warning per i certificati SSL self-signed (tipico nelle intranet)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -109,3 +109,27 @@ class FortiGateClient(FirewallRepository):
                 print(f"[WARN] Impossibile parsare l'interfaccia {item.get('name', 'unknown')}: {e}")
         
         return clean_interfaces
+    
+    def get_vdoms(self) -> List[Vdom]:
+        """
+        Scarica la lista dei VDOM dal firewall.
+        """
+        endpoint = "/cmdb/system/vdom"
+        
+        # Facciamo la richiesta. 
+        # Usiamo 'vdom=root' per sicurezza, anche se il tuo admin user 
+        # sembra avere permessi globali anche da altri vdom.
+        raw_data = self._make_request(endpoint, params={'vdom': 'root'})
+        
+        clean_vdoms = []
+        for item in raw_data:
+            try:
+                # Pydantic farà la magia:
+                # Mapperà item['name'] -> vdom.name
+                # Mapperà item['short-name'] -> vdom.short_name (grazie all'alias)
+                vdom = Vdom(**item)
+                clean_vdoms.append(vdom)
+            except ValidationError as e:
+                print(f"[WARN] Errore parsing VDOM {item.get('name', '?')}: {e}")
+        
+        return clean_vdoms

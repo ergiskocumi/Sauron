@@ -22,6 +22,21 @@ def main():
         print(f"❌ Errore durante l'inizializzazione del client: {e}")
         sys.exit(1)
 
+    print(">>> 1. Recupero Lista VDOM...")
+    try:
+        vdom_list = client.get_vdoms()
+        
+        print(f"✅ Trovati {len(vdom_list)} VDOM.")
+        print("-" * 40)
+        print(f"{'NAME (ID API)':<20} {'SHORT NAME (UI)'}")
+        print("-" * 40)
+        
+        for v in vdom_list:
+            print(f"{v.name:<20} {v.short_name}")
+            
+    except Exception as e:
+        print(f"❌ Errore: {e}")
+        
     # ---------------------------------------------------------
     # 3. TEST ROUTING (Routing Table Globale/Monitor)
     # ---------------------------------------------------------
