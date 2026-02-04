@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Network, 
@@ -19,6 +19,18 @@ const SIDEBAR_TRANSITION = { type: "spring", stiffness: 300, damping: 30 };
 
 export const Layout = ({ children, activeTab, setActiveTab }) => {
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+  const searchInputRef = useRef(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex font-sans text-slate-900 overflow-x-hidden">
@@ -129,13 +141,18 @@ export const Layout = ({ children, activeTab, setActiveTab }) => {
           {/* Top Header */}
           <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40">
             <div className="h-full px-8 md:px-12 max-w-[1700px] mx-auto flex items-center justify-between">
-              <div className="flex items-center gap-4 bg-slate-100/50 px-4 py-2 rounded-2xl border border-slate-200 min-w-[320px] md:w-96">
-                <Search className="w-4 h-4 text-slate-400" />
+              <div className="flex items-center gap-4 bg-slate-100/50 px-4 py-2 rounded-2xl border border-slate-200 min-w-[320px] md:w-96 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:bg-white transition-all group">
+                <Search className="w-4 h-4 text-slate-400 group-focus-within:text-blue-500 transition-colors" />
                 <input 
+                  ref={searchInputRef}
                   type="text" 
                   placeholder="Cerca IP, Hostname o VDOM..." 
                   className="bg-transparent border-none outline-none text-sm w-full text-slate-600 placeholder:text-slate-400"
                 />
+                <div className="hidden md:flex items-center gap-1 px-1.5 py-0.5 bg-white border border-slate-200 rounded-md shadow-sm">
+                   <span className="text-[10px] font-bold text-slate-400">⌘</span>
+                   <span className="text-[10px] font-bold text-slate-400">K</span>
+                </div>
               </div>
 
               <div className="flex items-center gap-6">
@@ -156,7 +173,7 @@ export const Layout = ({ children, activeTab, setActiveTab }) => {
 
           {/* Centered Content Area */}
           <main className="flex-1 p-8 md:p-12 w-full">
-            <div className="max-w-[1700px] mx-auto w-full">
+            <div className="max-w-[2000px] mx-auto w-full">
               {children}
             </div>
           </main>

@@ -134,7 +134,7 @@ function App() {
                     <InventoryTable />
                   </div>
                 ) : activeTab === 'map' ? (
-                  <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xl shadow-slate-200/50" style={{ height: '750px', width: '100%' }}>
+                  <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-2xl shadow-slate-200/60 h-[calc(100vh-280px)] w-full mb-12">
                     <NetworkMap />
                   </div>
                 ) : (
@@ -164,17 +164,20 @@ const StatusCard = ({ label, value, total, color, icon }) => {
   };
 
   return (
-    <div className={cn("px-6 py-5 rounded-3xl border bg-white flex items-center gap-5 shadow-sm shadow-slate-200/50")}>
-      <div className={cn("p-3 rounded-2xl", colors[color])}>
+    <motion.div 
+      whileHover={{ y: -4, transition: { duration: 0.2 } }}
+      className={cn("px-6 py-5 rounded-3xl border bg-white flex items-center gap-5 shadow-sm shadow-slate-200/50 cursor-default transition-shadow hover:shadow-xl hover:shadow-slate-200/60")}
+    >
+      <div className={cn("p-3.5 rounded-2xl border", colors[color])}>
         {icon}
       </div>
       <div>
-        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{label}</div>
-        <div className="text-2xl font-black text-slate-900 leading-none">
-          {value}{total !== undefined && <span className="text-slate-200 text-lg ml-1 font-medium">/{total}</span>}
+        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] mb-1">{label}</div>
+        <div className="text-2xl font-bold text-slate-900 leading-none tracking-tight">
+          {value}{total !== undefined && <span className="text-slate-300 text-lg ml-1 font-medium">/{total}</span>}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

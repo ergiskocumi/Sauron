@@ -15,6 +15,7 @@
 
 import { useInventory } from '../../hooks/useInventory';
 import { cn } from '../../lib/utils';
+import { useState } from 'react';
 import {
   Card,
   CardHeader,
@@ -33,10 +34,19 @@ import {
 import { Badge } from '../../components/ui/Badge';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Alert } from '../../components/ui/Alert';
-import { RefreshCw, Server, Globe, Shield } from 'lucide-react';
+import { RefreshCw, Server, Globe, Shield, Copy, Check, ExternalLink } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export const InventoryTable = () => {
   const { inventory, loading, error, refetch } = useInventory();
+  const [copiedId, setCopiedId] = useState(null);
+
+  const copyToClipboard = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    toast.success('IP copiato negli appunti');
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   if (loading) {
     return (
@@ -101,11 +111,11 @@ export const InventoryTable = () => {
                 <TableRow key={firewall.id} className="group cursor-default">
                   <TableCell>
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
+                      <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:scale-110 transition-all duration-500 shadow-sm">
                         <Server size={22} />
                       </div>
                       <div>
-                        <div className="font-black text-slate-900 leading-tight underline decoration-blue-500/0 group-hover:decoration-blue-500/100 transition-all">
+                        <div className="font-bold text-slate-900 leading-tight group-hover:text-blue-600 transition-colors">
                           {firewall.id}
                         </div>
                         <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">FortiGate FW</div>
@@ -113,23 +123,37 @@ export const InventoryTable = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Globe size={14} className="text-slate-300" />
-                      <code className="text-[12px] font-mono font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
-                        {firewall.host}
-                      </code>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 group-hover:border-blue-100 group-hover:bg-blue-50/30 transition-all duration-300">
+                        <code className="text-[12px] font-mono font-bold text-slate-600">
+                          {firewall.host}
+                        </code>
+                        <button 
+                          onClick={() => copyToClipboard(firewall.host, firewall.id)}
+                          className="p-1 hover:text-blue-600 text-slate-300 transition-colors"
+                        >
+                          {copiedId === firewall.id ? <Check size={14} /> : <Copy size={14} />}
+                        </button>
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <Shield size={14} className="text-slate-300" />
+                      <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-400">
+                        <Shield size={14} />
+                      </div>
                       <span className="text-slate-600 font-bold text-sm tracking-tight">{firewall.entry_vdom}</span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={firewall.enabled ? 'success' : 'gray'}>
-                      {firewall.enabled ? 'Active' : 'Disabled'}
-                    </Badge>
+                    <div className="flex items-center justify-between">
+                      <Badge variant={firewall.enabled ? 'success' : 'gray'}>
+                        {firewall.enabled ? 'Live' : 'Disabled'}
+                      </Badge>
+                      <button className="opacity-0 group-hover:opacity-100 p-2 text-slate-300 hover:text-blue-600 transition-all">
+                        <ExternalLink size={16} />
+                      </button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
-import ReactFlow, { 
-  Background, 
-  Controls, 
+import ReactFlow, {
+  Background,
+  Controls,
   Panel,
-  useNodesState, 
+  useNodesState,
   useEdgesState,
   MarkerType,
   Handle,
@@ -11,16 +11,20 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
-import { 
-  FirewallIcon, 
-  RouterIcon, 
-  SwitchIcon, 
-  HostIcon, 
-  CloudIcon 
+import {
+  FirewallIcon,
+  RouterIcon,
+  SwitchIcon,
+  HostIcon,
+  CloudIcon
 } from './Icons';
-import { Shield, RefreshCw, Layers, MousePointer2 } from 'lucide-react';
+import { Shield, RefreshCw, Layers, MousePointer2, Target, Zap, X, Info } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { cn } from '../../lib/utils';
+import { usePath } from '../../hooks/usePath';
+import { formatNodesForDropdown } from '../../services/pathService';
+import { PathSimulationPanel } from './PathSimulationPanel';
 
 // Custom Node Component
 const NetworkNode = ({ data, selected }) => {
@@ -44,18 +48,22 @@ const NetworkNode = ({ data, selected }) => {
 
   return (
     <div className={cn(
-      "px-4 py-3 shadow-xl rounded-2xl border-2 transition-all duration-300 flex flex-col items-center min-w-[120px] bg-white",
-      selected ? 'border-blue-600 ring-4 ring-blue-500/20 scale-105' : colorClass
+      "px-3 py-2.5 shadow-lg rounded-xl border transition-all duration-300 flex flex-col items-center min-w-[110px] bg-white group",
+      selected 
+        ? 'border-blue-500 ring-4 ring-blue-500/10 scale-105 shadow-blue-500/10' 
+        : cn('border-slate-100 hover:border-slate-300', colorClass)
     )}>
-      <Handle type="target" position={Position.Top} className="w-2 h-2 !bg-slate-400" />
-      <div className="mb-2">
+      <Handle type="target" position={Position.Top} className="w-2 h-2 !bg-slate-300 border-2 border-white !-top-1" />
+      <div className="mb-1.5 p-1 rounded-lg bg-white/50 group-hover:scale-110 transition-transform duration-300 scale-75 origin-center">
         <Icon />
       </div>
-      <div className="text-center">
-        <div className="font-bold text-xs truncate max-w-[140px]">{data.label}</div>
-        <div className="text-[10px] opacity-60 font-mono">{data.subtitle}</div>
+      <div className="text-center w-full px-1">
+        <div className="font-bold text-[9px] text-slate-800 truncate tracking-tight">{data.label}</div>
+        <div className="text-[8px] font-bold text-slate-400 font-mono uppercase tracking-tighter opacity-60 truncate">
+          {data.subtitle}
+        </div>
       </div>
-      <Handle type="source" position={Position.Bottom} className="w-2 h-2 !bg-slate-400" />
+      <Handle type="source" position={Position.Bottom} className="w-2 h-2 !bg-slate-300 border-2 border-white !-bottom-1" />
     </div>
   );
 };
@@ -69,10 +77,16 @@ const getLayoutedElements = (nodes, edges, direction = 'TB') => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
   
-  const nodeWidth = 180;
-  const nodeHeight = 100;
+  const nodeWidth = 160;
+  const nodeHeight = 120;
 
-  dagreGraph.setGraph({ rankdir: direction });
+  dagreGraph.setGraph({ 
+    rankdir: direction,
+    nodesep: 100,
+    ranksep: 120,
+    marginx: 50,
+    marginy: 50
+  });
 
   nodes.forEach((node) => {
     dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
@@ -107,6 +121,22 @@ export const NetworkMap = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [error, setError] = useState(null);
+
+  // Path simulation state
+  const { pathResult, loading: pathLoading, error: pathError, calculatePath: apiCalculatePath, resetPath } = usePath();
+  const [sourceNode, setSourceNode] = useState('');
+  const [targetIp, setTargetIp] = useState('');
+  const [originalNodes, setOriginalNodes] = useState([]);
+  const [originalEdges, setOriginalEdges] = useState([]);
+  const [availableNodes, setAvailableNodes] = useState([]);
+  const [showLegend, setShowLegend] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowLegend(false);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const fetchTopology = useCallback(async (isInitial = false) => {
     try {
@@ -173,6 +203,11 @@ export const NetworkMap = () => {
         initialEdges
       );
 
+      // Save original state for path reset
+      setOriginalNodes([...layoutedNodes]);
+      setOriginalEdges([...layoutedEdges]);
+      setAvailableNodes(data.nodes);
+
       setNodes([...layoutedNodes]);
       setEdges([...layoutedEdges]);
       setLastUpdated(new Date().toLocaleTimeString());
@@ -204,17 +239,85 @@ export const NetworkMap = () => {
       try {
         const res = await fetch('/api/snapshot/status');
         const status = await res.json();
-        
+
         if (status.exists) {
           // If the snapshot is very new (less than 10 seconds), maybe we should refresh
           // But for now, let's just keep it simple.
         }
       } catch (e) {}
     };
-    
+
     const interval = setInterval(checkUpdate, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Layout direction change
+  const onLayout = useCallback((direction) => {
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+      nodes,
+      edges,
+      direction
+    );
+
+    setNodes([...layoutedNodes]);
+    setEdges([...layoutedEdges]);
+  }, [nodes, edges, setNodes, setEdges]);
+
+  // Calculate path and apply highlighting
+  const handleCalculatePath = useCallback(async (source, destination) => {
+    try {
+      const result = await apiCalculatePath(source, destination);
+
+      // Highlight nodes
+      const highlightedNodes = originalNodes.map(node => {
+        const isHighlighted = result.nodeKeys.includes(node.id);
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            isHighlighted,
+          },
+          style: isHighlighted
+            ? {
+                border: '3px solid #8b5cf6',
+                boxShadow: '0 0 20px rgba(139, 92, 246, 0.5)',
+              }
+            : undefined,
+        };
+      });
+
+      // Highlight edges
+      const highlightedEdges = originalEdges.map(edge => {
+        const isHighlighted = result.nodeKeys.includes(edge.source) &&
+                              result.nodeKeys.includes(edge.target);
+        return {
+          ...edge,
+          animated: isHighlighted,
+          style: isHighlighted
+            ? { strokeWidth: 3, stroke: '#8b5cf6' }
+            : { strokeWidth: 2, stroke: '#94a3b8' },
+          markerEnd: isHighlighted
+            ? { type: MarkerType.ArrowClosed, color: '#8b5cf6' }
+            : { type: MarkerType.ArrowClosed, color: '#94a3b8' },
+        };
+      });
+
+      setNodes(highlightedNodes);
+      setEdges(highlightedEdges);
+
+      return result;
+    } catch (error) {
+      console.error('Path calculation failed:', error);
+      throw error;
+    }
+  }, [originalNodes, originalEdges, apiCalculatePath, setNodes, setEdges]);
+
+  // Reset highlighting
+  const handleResetPath = useCallback(() => {
+    setNodes([...originalNodes]);
+    setEdges([...originalEdges]);
+    resetPath();
+  }, [originalNodes, originalEdges, resetPath, setNodes, setEdges]);
 
   // Show error state if no snapshot
   if (error && !isLoading) {
@@ -247,44 +350,83 @@ export const NetworkMap = () => {
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
         fitView
+        fitViewOptions={{ padding: 0.2 }}
         className="bg-slate-50/50"
+        proOptions={{ hideAttribution: true }}
       >
         <Background gap={20} color="#e2e8f0" variant="dots" />
         <Controls showInteractive={false} className="!bg-white !border-slate-200 !shadow-lg !rounded-xl overflow-hidden" />
         
         <Panel position="top-right">
-          <div className="flex flex-col gap-2">
-            <button 
+          <div className="flex flex-col gap-3">
+            <div className="bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200 shadow-xl flex gap-1">
+              <button 
+                onClick={() => onLayout('TB')}
+                className="px-4 py-2 hover:bg-slate-100 rounded-xl text-[10px] font-bold text-slate-600 uppercase tracking-widest transition-all flex items-center gap-2"
+              >
+                <Layers size={14} />
+                Vertical
+              </button>
+              <button 
+                onClick={() => onLayout('LR')}
+                className="px-4 py-2 hover:bg-slate-100 rounded-xl text-[10px] font-bold text-slate-600 uppercase tracking-widest transition-all flex items-center gap-2"
+              >
+                <Layers size={14} className="-rotate-90" />
+                Horizontal
+              </button>
+            </div>
+            
+            <button
               onClick={() => fetchTopology()}
               disabled={isLoading}
-              className="px-4 py-2.5 bg-white border border-slate-200 shadow-xl rounded-2xl flex items-center gap-2 hover:bg-slate-50 transition-all text-slate-700 font-bold text-xs uppercase tracking-wider"
+              className="px-4 py-3 bg-blue-600 text-white shadow-lg shadow-blue-500/20 rounded-2xl flex items-center justify-center gap-3 hover:bg-blue-700 transition-all font-bold text-xs uppercase tracking-wider group"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh Map
+              <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+              <span>{isLoading ? 'ANALYZING...' : 'REBUILD TOPOLOGY'}</span>
             </button>
-            <div className="px-4 py-2 bg-slate-900/5 backdrop-blur-md border border-slate-200/50 rounded-2xl text-[10px] text-slate-500 font-bold uppercase tracking-widest text-center">
-              Last Sync: {lastUpdated || 'Never'}
-            </div>
           </div>
         </Panel>
 
-        <Panel position="bottom-left">
-          <div className="bg-white/80 backdrop-blur-md p-4 rounded-3xl border border-slate-200 shadow-2xl max-w-xs">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="p-2 bg-blue-500 rounded-xl">
-                <Shield className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-800">Topology Map</h3>
-                <p className="text-[10px] text-slate-500">Packet Tracer Style Reconstruction</p>
-              </div>
-            </div>
-            
-            <div className="space-y-2 border-t border-slate-100 pt-3">
-              <LegendItem icon={<FirewallIcon />} label="FortiGate FW" />
-              <LegendItem icon={<SwitchIcon />} label="VLAN / Subnet" />
-              <LegendItem icon={<CloudIcon />} label="Network Interconnect" />
-            </div>
+        <Panel position="bottom-right" className="m-4">
+          <div className="flex flex-col items-end gap-3">
+            <AnimatePresence>
+              {showLegend && (
+                <motion.div 
+                  initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: 20, scale: 1.05, filter: 'blur(10px)' }}
+                  className="bg-white/90 backdrop-blur-md p-5 rounded-[2rem] border border-slate-200 shadow-2xl max-w-xs transition-shadow hover:shadow-blue-500/5 group"
+                >
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="p-3 bg-blue-500 text-white rounded-2xl shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform duration-500">
+                      <Shield size={20} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 tracking-tight">Topology Map</h3>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Live Reconstruction</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3 border-t border-slate-100 pt-4">
+                    <LegendItem icon={<FirewallIcon />} label="FortiGate FW" />
+                    <LegendItem icon={<SwitchIcon />} label="VLAN / Subnet" />
+                    <LegendItem icon={<CloudIcon />} label="Network Interconnect" />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <button
+              onClick={() => setShowLegend(!showLegend)}
+              className={cn(
+                "p-4 rounded-full shadow-2xl transition-all duration-500 hover:scale-110 active:scale-95 group",
+                showLegend 
+                  ? "bg-white border border-slate-200 text-slate-400" 
+                  : "bg-blue-600 text-white"
+              )}
+            >
+              <Info size={24} className={cn("transition-transform duration-500", !showLegend && "group-hover:rotate-12")} />
+            </button>
           </div>
         </Panel>
 
