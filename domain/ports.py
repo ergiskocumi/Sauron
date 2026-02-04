@@ -12,7 +12,7 @@ class FirewallRepository(ABC):
     """
 
     @abstractmethod
-    def get_routing_table(self) -> List[Route]:
+    async def get_routing_table(self) -> List[Route]:
         """
         Recupera l'intera tabella di routing attiva (RIB).
         Le implementazioni concrete dovrebbero interrogare l'endpoint di Monitor.
@@ -23,7 +23,7 @@ class FirewallRepository(ABC):
         pass
 
     @abstractmethod
-    def get_interfaces(self, vdom: str = "root", type_filter: Optional[str] = None) -> List[NetworkInterface]:
+    async def get_interfaces(self, vdom: str = "root", type_filter: Optional[str] = None) -> List[NetworkInterface]:
         """
         Recupera la configurazione delle interfacce per un dato VDOM.
         
@@ -38,11 +38,6 @@ class FirewallRepository(ABC):
         pass
     
     @abstractmethod
-    def get_vdoms(self)-> List[Vdom]:
-        """
-        Recupera la lista dei VDOM configurati sul firewall.
-        
-        Returns:
-            List[Vdom]: Lista di oggetti Vdom.
-        """
+    async def get_interfaces(self, vdom: str = "root", type_filter: Optional[str] = None) -> List[NetworkInterface]:
+        """Recupera le interfacce (Asincrono)."""
         pass

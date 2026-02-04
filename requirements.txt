@@ -1,3 +1,7 @@
 requests
 pydantic-settings
 urllib3
+httpx
+pydantic
+fastapi
+uvicorn
