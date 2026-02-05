@@ -138,14 +138,52 @@ export const PathSimulationPanel = ({
           {/* Path Result Summary */}
           {pathResult && (
             <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-100 rounded-2xl">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-3">
                 <Zap className="w-4 h-4 text-blue-600" />
                 <span className="text-xs font-black text-blue-900 uppercase tracking-widest">
                   Risultato
                 </span>
               </div>
-              <p className="text-sm font-bold text-blue-700">{pathResult.summary}</p>
-              <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-blue-600">
+              <p className="text-sm font-bold text-blue-700 mb-3">{pathResult.summary}</p>
+
+              {/* Hop list visualization */}
+              {pathResult.nodeKeys && pathResult.nodeKeys.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  <p className="text-[9px] font-black text-blue-800 uppercase tracking-widest">Percorso:</p>
+                  {pathResult.nodeKeys.map((nodeKey, idx) => {
+                    const parts = nodeKey.split(':');
+                    const deviceId = parts[0];
+                    const vdom = parts[1] || 'root';
+                    const isFirst = idx === 0;
+                    const isLast = idx === pathResult.nodeKeys.length - 1;
+                    return (
+                      <div key={nodeKey} className="flex items-center gap-2">
+                        <div className={cn(
+                          "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm",
+                          isFirst
+                            ? "bg-green-500 text-white"
+                            : isLast
+                              ? "bg-blue-600 text-white"
+                              : "bg-white text-slate-600 border border-slate-200"
+                        )}>
+                          {idx + 1}
+                        </div>
+                        <div className="flex-1">
+                          <span className="text-[11px] font-bold text-slate-700">{deviceId}</span>
+                          <span className="text-[10px] text-slate-400 ml-1">({vdom})</span>
+                        </div>
+                        {!isLast && (
+                          <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                          </svg>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 text-[10px] font-bold text-blue-600 pt-2 border-t border-blue-200">
                 <div className="flex items-center gap-1.5">
                   <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
                   <span>{pathResult.nodeKeys.length} hop(s)</span>

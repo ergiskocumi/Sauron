@@ -46,12 +46,13 @@ import apiClient from '../api/client';
  *   exit_gateway: "10.0.0.1"
  * }
  */
-export const calculatePath = async (source, destination, maxTtl = 64) => {
+export const calculatePath = async (source, destination, maxTtl = 64, algorithm = 'dijkstra') => {
   try {
     const response = await apiClient.post('http://localhost:8000/api/path', {
       source,
       destination,
       max_ttl: maxTtl,
+      algorithm,  // 'dijkstra' uses topology links, 'lpm' uses routing tables
     });
     return response.data;
   } catch (error) {

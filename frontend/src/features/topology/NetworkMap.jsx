@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, memo } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -8,6 +8,8 @@ import ReactFlow, {
   MarkerType,
   Handle,
   Position,
+  getBezierPath,
+  EdgeLabelRenderer,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
@@ -18,7 +20,7 @@ import {
   HostIcon,
   CloudIcon
 } from './Icons';
-import { Shield, RefreshCw, Layers, MousePointer2, Target, Zap, X, Info } from 'lucide-react';
+import { Shield, RefreshCw, Layers, MousePointer2, Target, Zap, X, Info, Activity } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { cn } from '../../lib/utils';
@@ -26,8 +28,21 @@ import { usePath } from '../../hooks/usePath';
 import { formatNodesForDropdown } from '../../services/pathService';
 import { PathSimulationPanel } from './PathSimulationPanel';
 
-// Custom Node Component
-const NetworkNode = ({ data, selected }) => {
+// Configuration Constants (Moved outside to prevent re-renders)
+const FIT_VIEW_OPTIONS = { padding: 0.2 };
+const PRO_OPTIONS = { hideAttribution: true };
+
+// Protocol Color Mapping
+const PROTOCOL_COLORS = {
+  ospf: { border: '#8b5cf6', bg: '#f5f3ff', text: '#6d28d9' },
+  bgp: { border: '#06b6d4', bg: '#ecfeff', text: '#0e7490' },
+  static: { border: '#f59e0b', bg: '#fffbeb', text: '#b45309' },
+  connected: { border: '#22c55e', bg: '#f0fdf4', text: '#15803d' },
+  default: { border: '#64748b', bg: '#f8fafc', text: '#334155' },
+};
+
+// Custom Node Component (Memoized for performance)
+const NetworkNode = memo(({ data, selected }) => {
   const Icon = useMemo(() => {
     switch (data.type) {
       case 'firewall': return FirewallIcon;
@@ -37,64 +52,245 @@ const NetworkNode = ({ data, selected }) => {
     }
   }, [data.type]);
 
-  const colorClass = useMemo(() => {
+  const colors = useMemo(() => {
     switch (data.type) {
-      case 'firewall': return 'border-red-400 bg-red-50 text-red-700';
-      case 'network': return 'border-slate-400 bg-slate-50 text-slate-700';
-      case 'vlan': return 'border-indigo-400 bg-indigo-50 text-indigo-700';
-      default: return 'border-blue-400 bg-blue-50 text-blue-700';
+      case 'firewall': return { border: 'border-blue-200', bg: 'bg-blue-50/30', text: 'text-blue-700', iconBg: 'bg-blue-100/50' };
+      case 'vlan': return { border: 'border-sky-200', bg: 'bg-sky-50/30', text: 'text-sky-800', iconBg: 'bg-sky-100/50' };
+      default: return { border: 'border-slate-200', bg: 'bg-slate-50/30', text: 'text-slate-600', iconBg: 'bg-slate-100/50' };
     }
   }, [data.type]);
 
+  // Path visualization: determine node role in path
+  const isPathStart = data.isPathStart;
+  const isPathEnd = data.isPathEnd;
+  const isPathNode = data.isHighlighted;
+  const hopIndex = data.hopIndex;
+  const pathActive = data.pathActive;
+
+  // Determine node styling based on path role
+  const getNodeStyle = () => {
+    if (isPathStart) {
+      return 'bg-green-50/50 border-green-500 scale-110 shadow-2xl shadow-green-500/20 z-20';
+    }
+    if (isPathEnd) {
+      return 'bg-orange-50/50 border-orange-500 scale-110 shadow-2xl shadow-orange-500/20 z-20';
+    }
+    if (isPathNode) {
+      return 'bg-blue-50/50 border-blue-500 scale-105 shadow-xl shadow-blue-500/20 z-20';
+    }
+    if (data.isSource) {
+      return 'bg-green-50/50 border-green-500 scale-105 shadow-xl z-20';
+    }
+    if (pathActive) {
+      // Dim non-path nodes when path is active
+      return cn('bg-white/40 border-slate-100 opacity-30 blur-[0.5px]', colors.border);
+    }
+    if (selected) {
+      return 'bg-white border-blue-400 ring-4 ring-blue-50 scale-105 shadow-md';
+    }
+    return cn('bg-white hover:border-blue-300 hover:shadow-md', colors.border);
+  };
+
+  const isHighlightedNode = isPathStart || isPathEnd || isPathNode || data.isSource;
+
   return (
     <div className={cn(
-      "px-3 py-2.5 shadow-lg rounded-xl border transition-all duration-500 flex flex-col items-center min-w-[110px] bg-white group relative",
-      data.isHighlighted
-        ? 'border-blue-600 ring-4 ring-blue-600/20 scale-110 shadow-[0_0_25px_-5px_rgba(37,99,235,0.4)] z-10'
-        : data.isSource
-          ? 'border-green-500 ring-4 ring-green-500/20 scale-105 shadow-green-500/10 z-10'
-          : selected
-            ? 'border-blue-500 ring-4 ring-blue-500/10 scale-105 shadow-blue-500/10'
-            : cn('border-slate-100 hover:border-slate-300', colorClass)
+      "px-4 py-3 rounded-2xl border transition-all duration-500 flex flex-col items-center min-w-[130px] group relative shadow-sm",
+      getNodeStyle()
     )}>
-      {data.isHighlighted && (
-        <div className="absolute -top-2 -right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white animate-bounce-short">
-          <Zap size={10} className="text-white" />
-        </div>
+      {/* START / END Label Badge */}
+      {isPathStart && (
+        <motion.div
+          initial={{ scale: 0, y: 10 }}
+          animate={{ scale: 1, y: 0 }}
+          className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1 bg-green-500 text-white text-[9px] font-black uppercase tracking-widest rounded-lg shadow-lg z-30 whitespace-nowrap"
+        >
+          🚀 SOURCE
+        </motion.div>
       )}
-      <Handle type="target" position={Position.Top} className="w-2 h-2 !bg-slate-300 border-2 border-white !-top-1" />
-      <div className="mb-1.5 p-1 rounded-lg bg-white/50 group-hover:scale-110 transition-transform duration-300 scale-75 origin-center">
-        <Icon />
+      {isPathEnd && (
+        <motion.div
+          initial={{ scale: 0, y: 10 }}
+          animate={{ scale: 1, y: 0 }}
+          className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1 bg-orange-500 text-white text-[9px] font-black uppercase tracking-widest rounded-lg shadow-lg z-30 whitespace-nowrap"
+        >
+          🎯 DESTINATION
+        </motion.div>
+      )}
+
+      {/* Hop Number Badge */}
+      {hopIndex !== undefined && hopIndex !== null && (
+        <motion.div
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className={cn(
+            "absolute -top-3 -right-3 w-6 h-6 rounded-full flex items-center justify-center shadow-lg z-30 text-[10px] font-black",
+            isPathStart
+              ? "bg-green-500 text-white"
+              : isPathEnd
+                ? "bg-orange-500 text-white"
+                : "bg-blue-500 text-white"
+          )}
+        >
+          {hopIndex}
+        </motion.div>
+      )}
+
+      <Handle type="target" position={Position.Top} className="!w-1.5 !h-1.5 !bg-slate-200 !border-none !-top-0.5" />
+
+      {/* Icon Wrapper sempre bianco per visibilità icone */}
+      <div className={cn(
+        "mb-2 p-2 rounded-xl transition-all duration-500 group-hover:scale-110",
+        isPathStart ? "bg-green-100/50 shadow-sm" : 
+        isPathEnd ? "bg-orange-100/50 shadow-sm" :
+        isPathNode ? "bg-blue-100/50 shadow-sm" : colors.iconBg
+      )}>
+        <div className="scale-[0.85] origin-center">
+          <Icon />
+        </div>
       </div>
-      <div className="text-center w-full px-1">
-        <div className="font-bold text-[9px] text-slate-800 truncate tracking-tight">{data.label}</div>
-        <div className="text-[8px] font-bold text-slate-400 font-mono uppercase tracking-tighter opacity-60 truncate">
+
+      {/* Testo sempre leggibile (Scurito) */}
+      <div className="text-center w-full">
+        <div className={cn(
+          "font-black text-[10px] tracking-tight truncate leading-tight",
+          isHighlightedNode ? "text-slate-900" : "text-slate-800"
+        )}>
+          {data.label}
+        </div>
+        <div className={cn(
+          "text-[8px] font-bold font-mono uppercase tracking-[0.05em] mt-0.5 opacity-80",
+          isHighlightedNode ? "text-blue-600" : "text-slate-400"
+        )}>
           {data.subtitle}
         </div>
       </div>
-      <Handle type="source" position={Position.Bottom} className="w-2 h-2 !bg-slate-300 border-2 border-white !-bottom-1" />
+
+      <Handle type="source" position={Position.Bottom} className="!w-1.5 !h-1.5 !bg-slate-200 !border-none !-bottom-0.5" />
     </div>
   );
-};
+});
 
-// Define nodeTypes outside component to prevent recreation on each render
+// Custom Edge Component (Memoized for high performance)
+const NetworkEdge = memo(({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  style = {},
+  markerEnd,
+  data,
+}) => {
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  });
+
+  const protocol = data?.protocol || 'connected';
+  const colors = PROTOCOL_COLORS[protocol] || PROTOCOL_COLORS.default;
+  const isHighlighted = data?.isHighlighted;
+  const edgeHopIndex = data?.edgeHopIndex;
+  const pathActive = data?.pathActive;
+
+  return (
+    <>
+      {/* Sfumatura soffusa sotto l'arco evidenziato */}
+      {isHighlighted && (
+        <path
+          style={{
+            stroke: '#3b82f6',
+            strokeWidth: 10,
+            filter: 'blur(8px)',
+            opacity: 0.2,
+          }}
+          className="animate-pulse"
+          d={edgePath}
+        />
+      )}
+      
+      <path
+        id={id}
+        style={{
+          ...style,
+          stroke: isHighlighted ? '#2563eb' : (style.stroke || colors.border),
+          strokeWidth: isHighlighted ? 3 : (style.strokeWidth || 1.2),
+          opacity: isHighlighted ? 1 : (pathActive ? 0.05 : 0.4),
+          transition: 'all 0.5s ease',
+        }}
+        className={cn(
+          "react-flow__edge-path",
+          isHighlighted ? "stroke-[4px]" : ""
+        )}
+        d={edgePath}
+        markerEnd={markerEnd}
+      />
+
+      {/* Label IP/Subnet */}
+      <EdgeLabelRenderer>
+        <div
+          style={{
+            position: 'absolute',
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+            pointerEvents: 'all',
+          }}
+          className="z-50"
+        >
+          <div className={cn(
+            "flex flex-col items-center px-2 py-1 rounded-lg border transition-all duration-300 backdrop-blur-md shadow-sm",
+            isHighlighted
+              ? "bg-blue-600 border-blue-500 scale-110 shadow-lg shadow-blue-500/30 text-white"
+              : cn(
+                  "bg-white/90 border-slate-200 opacity-80 hover:opacity-100 hover:scale-105",
+                  pathActive && "opacity-0 scale-50 pointer-events-none" // Spasce completamente se non nel path
+                )
+          )}>
+            {isHighlighted && edgeHopIndex && (
+              <span className="text-[7px] font-black text-blue-100 mb-0.5 uppercase tracking-tighter">
+                Hop {edgeHopIndex}
+              </span>
+            )}
+            <span className={cn(
+              "text-[9px] font-bold font-mono tracking-tight",
+              isHighlighted ? "text-white" : "text-slate-700"
+            )}>
+              {data?.subnet}
+            </span>
+          </div>
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  );
+});
+
+// Define types outside component
 const nodeTypes = {
   networkNode: NetworkNode,
+};
+
+const edgeTypes = {
+  networkEdge: NetworkEdge,
 };
 
 const getLayoutedElements = (nodes, edges, direction = 'TB') => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-  const nodeWidth = 160;
-  const nodeHeight = 120;
+  const nodeWidth = 200;  // Aumentato per evitare sovrapposizioni label
+  const nodeHeight = 150; // Aumentato per dare respiro verticale
 
   dagreGraph.setGraph({
     rankdir: direction,
-    nodesep: 100,
-    ranksep: 120,
-    marginx: 50,
-    marginy: 50
+    nodesep: 140, // Aumentato spazio orizzontale
+    ranksep: 200, // Aumentato spazio verticale per le label
+    marginx: 100,
+    marginy: 100
   });
 
   nodes.forEach((node) => {
@@ -184,83 +380,37 @@ export const NetworkMap = () => {
         };
       });
 
-      // Transform links to edges (NEXT-HOP BASED with METRICS)
-      // Each link is now a directed edge with source -> target and enriched metrics
+      // Transform links to edges (Smarter, data-driven approach)
       const initialEdges = data.links.map((link, linkIdx) => {
-        // Build label with metrics (cost, bandwidth, latency)
-        const costLabel = link.cost > 1 ? ` cost:${link.cost}` : '';
-        const protocolBadge = (link.protocol && link.protocol !== 'connected') ? `${link.protocol.toUpperCase()}` : '';
+        const protocol = link.protocol?.toLowerCase() || 'connected';
+        const colors = PROTOCOL_COLORS[protocol] || PROTOCOL_COLORS.default;
 
-        // Add bandwidth if available
-        const bwLabel = link.bandwidth_mbps ? ` ${link.bandwidth_mbps >= 1000 ? (link.bandwidth_mbps / 1000) + 'G' : link.bandwidth_mbps + 'M'}` : '';
-
-        // Add latency if available
-        const latencyLabel = link.latency_ms ? ` ${link.latency_ms.toFixed(2)}ms` : '';
-
-        // Combine metrics
-        const metricsLine = `${costLabel}${bwLabel}${latencyLabel}`.trim();
-        const label = protocolBadge
-          ? `${link.subnet}\n${protocolBadge}${metricsLine ? '\n' + metricsLine : ''}`
-          : `${link.subnet}${metricsLine ? '\n' + metricsLine : ''}`;
-
-        // Determine edge width based on bandwidth
-        let strokeWidth = 2;
+        // Custom stroke width based on BW
+        let strokeWidth = 1.2;
         if (link.bandwidth_mbps) {
-          if (link.bandwidth_mbps >= 100000) strokeWidth = 6;      // 100G+
-          else if (link.bandwidth_mbps >= 40000) strokeWidth = 5;  // 40G+
-          else if (link.bandwidth_mbps >= 10000) strokeWidth = 4;  // 10G+
-          else if (link.bandwidth_mbps >= 1000) strokeWidth = 3;   // 1G+
-          else strokeWidth = 2;                                     // < 1G
+          if (link.bandwidth_mbps >= 10000) strokeWidth = 2.2;
+          else if (link.bandwidth_mbps >= 1000) strokeWidth = 1.6;
         }
-
-        // Protocol-based colors
-        const getProtocolColor = (protocol) => {
-          switch (protocol) {
-            case 'ospf': return '#8b5cf6';  // Purple
-            case 'bgp': return '#06b6d4';   // Cyan
-            case 'static': return '#f59e0b'; // Amber
-            case 'connected': return '#22c55e'; // Green
-            default: return '#64748b';       // Slate
-          }
-        };
-
-        const edgeColor = getProtocolColor(link.protocol);
 
         return {
           id: `e-${linkIdx}`,
           source: link.source,
           target: link.target,
-          label: label,
-          labelStyle: {
-            fill: '#64748b',
-            fontWeight: 800,
-            fontSize: '8px',
-            fontFamily: 'monospace',
-            textAlign: 'center',
-            lineHeight: 1.3
+          type: 'networkEdge', // Use the custom memoized edge
+          data: {
+            ...link,
+            protocol: protocol,
           },
-          labelBgStyle: { fill: 'rgba(255, 255, 255, 0.95)', fillOpacity: 1 },
-          labelBgPadding: [6, 10],
-          labelBgBorderRadius: 8,
-          animated: false,
           style: {
             strokeWidth: strokeWidth,
-            stroke: edgeColor,
-            opacity: link.reliability ? 0.5 + (link.reliability * 0.5) : 1.0
+            stroke: colors.border,
+            opacity: 0.5
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: edgeColor,
-          },
-          data: {
-            cost: link.cost,
-            protocol: link.protocol,
-            distance: link.distance,
-            source_interface: link.source_interface,
-            target_ip: link.target_ip,
-            bandwidth_mbps: link.bandwidth_mbps,
-            latency_ms: link.latency_ms,
-            reliability: link.reliability,
+            color: colors.border,
+            width: 20,
+            height: 20,
           }
         };
       });
@@ -334,53 +484,63 @@ export const NetworkMap = () => {
   const handleCalculatePath = useCallback(async (source, destination) => {
     try {
       const result = await apiCalculatePath(source, destination);
+      const pathNodeKeys = result.nodeKeys || [];
+      const pathLength = pathNodeKeys.length;
 
-      // Highlight nodes
+      // Highlight nodes with clear path visualization
       const highlightedNodes = originalNodes.map(node => {
-        const isHighlighted = result.nodeKeys.includes(node.id);
+        const pathIndex = pathNodeKeys.indexOf(node.id);
+        const isInPath = pathIndex !== -1;
+        const isPathStart = pathIndex === 0;
+        const isPathEnd = pathIndex === pathLength - 1 && pathLength > 1;
+
         return {
           ...node,
           data: {
             ...node.data,
-            isHighlighted,
+            isHighlighted: isInPath && !isPathStart && !isPathEnd,
+            isPathStart,
+            isPathEnd,
+            hopIndex: isInPath ? pathIndex + 1 : null, // 1-based hop number
+            pathActive: true, // Flag to dim non-path nodes
+            isSource: false, // Clear selection state
           },
         };
       });
 
-      // Highlight edges
+      // Highlight edges with direction awareness
       const highlightedEdges = originalEdges.map(edge => {
-        // Check if this edge is part of the path
         let isHighlighted = false;
-        for (let i = 0; i < result.nodeKeys.length - 1; i++) {
-          const currentHop = result.nodeKeys[i];
-          const nextHop = result.nodeKeys[i+1];
+        let edgeHopIndex = null;
+
+        for (let i = 0; i < pathNodeKeys.length - 1; i++) {
+          const currentHop = pathNodeKeys[i];
+          const nextHop = pathNodeKeys[i + 1];
+          // Check both directions
           if ((edge.source === currentHop && edge.target === nextHop) ||
               (edge.source === nextHop && edge.target === currentHop)) {
             isHighlighted = true;
+            edgeHopIndex = i + 1;
             break;
           }
         }
 
         return {
           ...edge,
-          animated: isHighlighted,
-          style: isHighlighted
-            ? {
-                strokeWidth: 5,
-                stroke: '#2563eb',
-                filter: 'drop-shadow(0 0 12px rgba(37, 99, 235, 0.8))',
-                strokeDasharray: '8 8',
-              }
-            : { ...edge.style, opacity: 0.6 },
-          labelStyle: isHighlighted
-            ? { fill: '#1e40af', fontWeight: 900, fontSize: '11px' }
-            : { fill: '#64748b', fontWeight: 700, fontSize: '9px', opacity: 0.8 },
-          labelBgStyle: isHighlighted
-            ? { fill: '#eff6ff', stroke: '#3b82f6', strokeWidth: 1.5 }
-            : { fill: 'rgba(255, 255, 255, 0.8)', stroke: '#e2e8f0', strokeWidth: 1, opacity: 0.8 },
-          markerEnd: isHighlighted
-            ? { type: MarkerType.ArrowClosed, color: '#2563eb', width: 25, height: 25 }
-            : { ...edge.markerEnd, opacity: 0.6 },
+          data: {
+            ...edge.data,
+            isHighlighted,
+            edgeHopIndex,
+            pathActive: true, // Aggiunto per permettere all'Edge di spegnersi
+          },
+          style: {
+            ...edge.style,
+            opacity: isHighlighted ? 1 : 0.05, // Quasi invisibile se non in path
+          },
+          markerEnd: {
+            ...edge.markerEnd,
+            opacity: isHighlighted ? 1 : 0.05,
+          }
         };
       });
 
@@ -428,16 +588,16 @@ export const NetworkMap = () => {
         toast.error('Seleziona un Firewall come sorgente del percorso.');
       }
     } else {
-      // For destination, we can use anything (IP or another node)
-      const destinationValue = node.data.type === 'vlan' ? node.id : node.data.label;
+      // For destination, use the full node_key (node.id) which the backend can resolve
+      const destinationValue = node.id;
       setTargetIp(destinationValue);
       setSelectionStage('source');
-      
+
       // Clear source highlight when calculation starts
       setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, isSource: false } })));
 
-      toast.success(`Calcolo percorso verso ${destinationValue}...`);
-      
+      toast.success(`Calcolo percorso verso ${node.data.label}...`);
+
       // Auto-calculate
       handleCalculatePath(sourceNode, destinationValue);
     }
@@ -474,10 +634,11 @@ export const NetworkMap = () => {
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
+        fitViewOptions={FIT_VIEW_OPTIONS}
         className="bg-slate-50/50"
-        proOptions={{ hideAttribution: true }}
+        proOptions={PRO_OPTIONS}
       >
         <Background gap={20} color="#e2e8f0" variant="dots" />
         <Controls showInteractive={false} className="!bg-white !border-slate-200 !shadow-lg !rounded-xl overflow-hidden" />
