@@ -95,7 +95,7 @@ const NetworkNode = memo(({ data, selected }) => {
 
   return (
     <div className={cn(
-      "px-4 py-3 rounded-2xl border transition-all duration-500 flex flex-col items-center min-w-[130px] group relative shadow-sm",
+      "px-3 py-2 rounded-2xl border transition-all duration-500 flex flex-col items-center min-w-[110px] group relative shadow-sm",
       getNodeStyle()
     )}>
       {/* START / END Label Badge */}
@@ -219,9 +219,9 @@ const NetworkEdge = memo(({
         id={id}
         style={{
           ...style,
-          stroke: isHighlighted ? '#2563eb' : (style.stroke || colors.border),
-          strokeWidth: isHighlighted ? 3 : (style.strokeWidth || 1.2),
-          opacity: isHighlighted ? 1 : (pathActive ? 0.05 : 0.4),
+          stroke: isHighlighted ? '#2563eb' : '#64748b',
+          strokeWidth: isHighlighted ? 3 : 1.2,
+          opacity: isHighlighted ? 1 : (pathActive ? 0.05 : 0.6),
           transition: 'all 0.5s ease',
         }}
         className={cn(
@@ -232,37 +232,30 @@ const NetworkEdge = memo(({
         markerEnd={markerEnd}
       />
 
-      {/* Label IP/Subnet */}
+      {/* Label IP/Subnet - Visibile solo se evidenziato o hover (opzionale) */}
       <EdgeLabelRenderer>
         <div
           style={{
             position: 'absolute',
             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-            pointerEvents: 'all',
+            pointerEvents: 'none',
           }}
           className="z-50"
         >
-          <div className={cn(
-            "flex flex-col items-center px-2 py-1 rounded-lg border transition-all duration-300 backdrop-blur-md shadow-sm",
-            isHighlighted
-              ? "bg-blue-600 border-blue-500 scale-110 shadow-lg shadow-blue-500/30 text-white"
-              : cn(
-                  "bg-white/90 border-slate-200 opacity-80 hover:opacity-100 hover:scale-105",
-                  pathActive && "opacity-0 scale-50 pointer-events-none" // Spasce completamente se non nel path
-                )
-          )}>
-            {isHighlighted && edgeHopIndex && (
-              <span className="text-[7px] font-black text-blue-100 mb-0.5 uppercase tracking-tighter">
-                Hop {edgeHopIndex}
-              </span>
-            )}
-            <span className={cn(
-              "text-[9px] font-bold font-mono tracking-tight",
-              isHighlighted ? "text-white" : "text-slate-700"
+          {isHighlighted && (
+            <div className={cn(
+              "flex flex-col items-center px-2 py-1 rounded-lg border transition-all duration-300 backdrop-blur-md shadow-sm bg-blue-600 border-blue-500 scale-110 shadow-lg shadow-blue-500/30 text-white"
             )}>
-              {data?.subnet}
-            </span>
-          </div>
+              {edgeHopIndex && (
+                <span className="text-[7px] font-black text-blue-100 mb-0.5 uppercase tracking-tighter">
+                  Hop {edgeHopIndex}
+                </span>
+              )}
+              <span className="text-[9px] font-bold font-mono tracking-tight text-white">
+                {data?.subnet}
+              </span>
+            </div>
+          )}
         </div>
       </EdgeLabelRenderer>
     </>
@@ -282,15 +275,15 @@ const getLayoutedElements = (nodes, edges, direction = 'TB') => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-  const nodeWidth = 200;  // Aumentato per evitare sovrapposizioni label
-  const nodeHeight = 150; // Aumentato per dare respiro verticale
+  const nodeWidth = 160;  
+  const nodeHeight = 120; 
 
   dagreGraph.setGraph({
     rankdir: direction,
-    nodesep: 140, // Aumentato spazio orizzontale
-    ranksep: 200, // Aumentato spazio verticale per le label
-    marginx: 100,
-    marginy: 100
+    nodesep: 80, 
+    ranksep: 140, 
+    marginx: 50,
+    marginy: 50
   });
 
   nodes.forEach((node) => {
@@ -403,14 +396,14 @@ export const NetworkMap = () => {
           },
           style: {
             strokeWidth: strokeWidth,
-            stroke: colors.border,
-            opacity: 0.5
+            stroke: '#64748b',
+            opacity: 0.6
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: colors.border,
-            width: 20,
-            height: 20,
+            color: '#64748b',
+            width: 14,
+            height: 14,
           }
         };
       });
