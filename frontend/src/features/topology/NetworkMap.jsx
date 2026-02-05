@@ -7,7 +7,7 @@ import ReactFlow, {
   useEdgesState,
   MarkerType,
   Handle,
-  Position
+  Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
@@ -49,11 +49,13 @@ const NetworkNode = ({ data, selected }) => {
   return (
     <div className={cn(
       "px-3 py-2.5 shadow-lg rounded-xl border transition-all duration-500 flex flex-col items-center min-w-[110px] bg-white group relative",
-      data.isHighlighted 
-        ? 'border-blue-600 ring-4 ring-blue-600/20 scale-110 shadow-[0_0_25px_-5px_rgba(37,99,235,0.4)] z-10' 
-        : selected
-          ? 'border-blue-500 ring-4 ring-blue-500/10 scale-105 shadow-blue-500/10'
-          : cn('border-slate-100 hover:border-slate-300', colorClass)
+      data.isHighlighted
+        ? 'border-blue-600 ring-4 ring-blue-600/20 scale-110 shadow-[0_0_25px_-5px_rgba(37,99,235,0.4)] z-10'
+        : data.isSource
+          ? 'border-green-500 ring-4 ring-green-500/20 scale-105 shadow-green-500/10 z-10'
+          : selected
+            ? 'border-blue-500 ring-4 ring-blue-500/10 scale-105 shadow-blue-500/10'
+            : cn('border-slate-100 hover:border-slate-300', colorClass)
     )}>
       {data.isHighlighted && (
         <div className="absolute -top-2 -right-2 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center shadow-lg border-2 border-white animate-bounce-short">
@@ -83,11 +85,11 @@ const nodeTypes = {
 const getLayoutedElements = (nodes, edges, direction = 'TB') => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
-  
+
   const nodeWidth = 160;
   const nodeHeight = 120;
 
-  dagreGraph.setGraph({ 
+  dagreGraph.setGraph({
     rankdir: direction,
     nodesep: 100,
     ranksep: 120,
@@ -105,21 +107,21 @@ const getLayoutedElements = (nodes, edges, direction = 'TB') => {
 
   dagre.layout(dagreGraph);
 
-  nodes.forEach((node) => {
+  const layoutedNodes = nodes.map((node) => {
     const nodeWithPosition = dagreGraph.node(node.id);
-    node.targetPosition = direction === 'LR' ? Position.Left : Position.Top;
-    node.sourcePosition = direction === 'LR' ? Position.Right : Position.Bottom;
 
-    // We are shifting the dagre node position (which is center-based) to the top left
-    node.position = {
-      x: nodeWithPosition.x - nodeWidth / 2,
-      y: nodeWithPosition.y - nodeHeight / 2,
+    return {
+      ...node,
+      targetPosition: direction === 'LR' ? Position.Left : Position.Top,
+      sourcePosition: direction === 'LR' ? Position.Right : Position.Bottom,
+      position: {
+        x: nodeWithPosition.x - nodeWidth / 2,
+        y: nodeWithPosition.y - nodeHeight / 2,
+      },
     };
-
-    return node;
   });
 
-  return { nodes, edges };
+  return { nodes: layoutedNodes, edges };
 };
 
 export const NetworkMap = () => {
@@ -137,6 +139,7 @@ export const NetworkMap = () => {
   const [originalEdges, setOriginalEdges] = useState([]);
   const [availableNodes, setAvailableNodes] = useState([]);
   const [showLegend, setShowLegend] = useState(true);
+  const [selectionStage, setSelectionStage] = useState('source'); // 'source' or 'target'
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -181,32 +184,85 @@ export const NetworkMap = () => {
         };
       });
 
-      // Transform links to edges
-      // Each link connects multiple endpoints (subnet), create edges between all pairs
-      const initialEdges = [];
-      data.links.forEach((link, linkIdx) => {
-        const endpoints = link.endpoints;
-        // Create edges between all pairs of endpoints in this subnet
-        for (let i = 0; i < endpoints.length; i++) {
-          for (let j = i + 1; j < endpoints.length; j++) {
-            initialEdges.push({
-              id: `e-${linkIdx}-${i}-${j}`,
-              source: endpoints[i],
-              target: endpoints[j],
-              label: link.subnet,
-              labelStyle: { fill: '#64748b', fontWeight: 800, fontSize: '10px', fontSans: 'monospace' },
-              labelBgStyle: { fill: 'rgba(255, 255, 255, 0.9)', fillOpacity: 1 },
-              labelBgPadding: [6, 10],
-              labelBgBorderRadius: 8,
-              animated: false,
-              style: { strokeWidth: 2, stroke: '#cbd5e1' },
-              markerEnd: {
-                type: MarkerType.ArrowClosed,
-                color: '#cbd5e1',
-              },
-            });
-          }
+      // Transform links to edges (NEXT-HOP BASED with METRICS)
+      // Each link is now a directed edge with source -> target and enriched metrics
+      const initialEdges = data.links.map((link, linkIdx) => {
+        // Build label with metrics (cost, bandwidth, latency)
+        const costLabel = link.cost > 1 ? ` cost:${link.cost}` : '';
+        const protocolBadge = (link.protocol && link.protocol !== 'connected') ? `${link.protocol.toUpperCase()}` : '';
+
+        // Add bandwidth if available
+        const bwLabel = link.bandwidth_mbps ? ` ${link.bandwidth_mbps >= 1000 ? (link.bandwidth_mbps / 1000) + 'G' : link.bandwidth_mbps + 'M'}` : '';
+
+        // Add latency if available
+        const latencyLabel = link.latency_ms ? ` ${link.latency_ms.toFixed(2)}ms` : '';
+
+        // Combine metrics
+        const metricsLine = `${costLabel}${bwLabel}${latencyLabel}`.trim();
+        const label = protocolBadge
+          ? `${link.subnet}\n${protocolBadge}${metricsLine ? '\n' + metricsLine : ''}`
+          : `${link.subnet}${metricsLine ? '\n' + metricsLine : ''}`;
+
+        // Determine edge width based on bandwidth
+        let strokeWidth = 2;
+        if (link.bandwidth_mbps) {
+          if (link.bandwidth_mbps >= 100000) strokeWidth = 6;      // 100G+
+          else if (link.bandwidth_mbps >= 40000) strokeWidth = 5;  // 40G+
+          else if (link.bandwidth_mbps >= 10000) strokeWidth = 4;  // 10G+
+          else if (link.bandwidth_mbps >= 1000) strokeWidth = 3;   // 1G+
+          else strokeWidth = 2;                                     // < 1G
         }
+
+        // Protocol-based colors
+        const getProtocolColor = (protocol) => {
+          switch (protocol) {
+            case 'ospf': return '#8b5cf6';  // Purple
+            case 'bgp': return '#06b6d4';   // Cyan
+            case 'static': return '#f59e0b'; // Amber
+            case 'connected': return '#22c55e'; // Green
+            default: return '#64748b';       // Slate
+          }
+        };
+
+        const edgeColor = getProtocolColor(link.protocol);
+
+        return {
+          id: `e-${linkIdx}`,
+          source: link.source,
+          target: link.target,
+          label: label,
+          labelStyle: {
+            fill: '#64748b',
+            fontWeight: 800,
+            fontSize: '8px',
+            fontFamily: 'monospace',
+            textAlign: 'center',
+            lineHeight: 1.3
+          },
+          labelBgStyle: { fill: 'rgba(255, 255, 255, 0.95)', fillOpacity: 1 },
+          labelBgPadding: [6, 10],
+          labelBgBorderRadius: 8,
+          animated: false,
+          style: {
+            strokeWidth: strokeWidth,
+            stroke: edgeColor,
+            opacity: link.reliability ? 0.5 + (link.reliability * 0.5) : 1.0
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: edgeColor,
+          },
+          data: {
+            cost: link.cost,
+            protocol: link.protocol,
+            distance: link.distance,
+            source_interface: link.source_interface,
+            target_ip: link.target_ip,
+            bandwidth_mbps: link.bandwidth_mbps,
+            latency_ms: link.latency_ms,
+            reliability: link.reliability,
+          }
+        };
       });
 
       const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
@@ -309,22 +365,22 @@ export const NetworkMap = () => {
           ...edge,
           animated: isHighlighted,
           style: isHighlighted
-            ? { 
-                strokeWidth: 5, 
-                stroke: '#2563eb', 
+            ? {
+                strokeWidth: 5,
+                stroke: '#2563eb',
                 filter: 'drop-shadow(0 0 12px rgba(37, 99, 235, 0.8))',
                 strokeDasharray: '8 8',
               }
-            : { strokeWidth: 2, stroke: '#e2e8f0', opacity: 0.2 },
+            : { ...edge.style, opacity: 0.6 },
           labelStyle: isHighlighted
             ? { fill: '#1e40af', fontWeight: 900, fontSize: '11px' }
-            : { fill: '#94a3b8', fontWeight: 700, fontSize: '9px', opacity: 0.5 },
+            : { fill: '#64748b', fontWeight: 700, fontSize: '9px', opacity: 0.8 },
           labelBgStyle: isHighlighted
             ? { fill: '#eff6ff', stroke: '#3b82f6', strokeWidth: 1.5 }
-            : { fill: 'rgba(255, 255, 255, 0.7)', stroke: '#f1f5f9', strokeWidth: 1 },
+            : { fill: 'rgba(255, 255, 255, 0.8)', stroke: '#e2e8f0', strokeWidth: 1, opacity: 0.8 },
           markerEnd: isHighlighted
             ? { type: MarkerType.ArrowClosed, color: '#2563eb', width: 25, height: 25 }
-            : { type: MarkerType.ArrowClosed, color: '#e2e8f0' },
+            : { ...edge.markerEnd, opacity: 0.6 },
         };
       });
 
@@ -342,8 +398,50 @@ export const NetworkMap = () => {
   const handleResetPath = useCallback(() => {
     setNodes([...originalNodes]);
     setEdges([...originalEdges]);
+    setSourceNode('');
+    setTargetIp('');
+    setSelectionStage('source');
     resetPath();
   }, [originalNodes, originalEdges, resetPath, setNodes, setEdges]);
+
+  // Handle node click for quick path selection
+  const onNodeClick = useCallback(async (event, node) => {
+    // If a path is already showing, reset before starting new selection
+    if (pathResult) {
+      handleResetPath();
+    }
+
+    if (selectionStage === 'source') {
+      // For source, we only allow firewall nodes (those in availableNodes)
+      if (node.data.type === 'firewall') {
+        setSourceNode(node.id);
+        setSelectionStage('target');
+        
+        // Visual feedback: highlight source node in green
+        setNodes(nds => nds.map(n => ({
+          ...n,
+          data: { ...n.data, isSource: n.id === node.id }
+        })));
+
+        toast.success(`Sorgente: ${node.data.label}. Ora seleziona la destinazione.`);
+      } else {
+        toast.error('Seleziona un Firewall come sorgente del percorso.');
+      }
+    } else {
+      // For destination, we can use anything (IP or another node)
+      const destinationValue = node.data.type === 'vlan' ? node.id : node.data.label;
+      setTargetIp(destinationValue);
+      setSelectionStage('source');
+      
+      // Clear source highlight when calculation starts
+      setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, isSource: false } })));
+
+      toast.success(`Calcolo percorso verso ${destinationValue}...`);
+      
+      // Auto-calculate
+      handleCalculatePath(sourceNode, destinationValue);
+    }
+  }, [selectionStage, sourceNode, handleCalculatePath, setNodes, pathResult, handleResetPath]);
 
   // Show error state if no snapshot
   if (error && !isLoading) {
@@ -374,6 +472,7 @@ export const NetworkMap = () => {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeClick={onNodeClick}
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ padding: 0.2 }}
@@ -392,6 +491,10 @@ export const NetworkMap = () => {
             isCalculating={pathLoading}
             pathResult={pathResult}
             pathError={pathError}
+            sourceNode={sourceNode}
+            setSourceNode={setSourceNode}
+            targetIp={targetIp}
+            setTargetIp={setTargetIp}
           />
         </Panel>
 
@@ -450,6 +553,14 @@ export const NetworkMap = () => {
                     <LegendItem icon={<SwitchIcon />} label="VLAN / Subnet" />
                     <LegendItem icon={<CloudIcon />} label="Network Interconnect" />
                   </div>
+
+                  <div className="space-y-2 border-t border-slate-100 pt-4 mt-4">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Link Protocols</p>
+                    <EdgeLegendItem color="#22c55e" label="Connected" />
+                    <EdgeLegendItem color="#f59e0b" label="Static" />
+                    <EdgeLegendItem color="#8b5cf6" label="OSPF" />
+                    <EdgeLegendItem color="#06b6d4" label="BGP" />
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -487,5 +598,26 @@ const LegendItem = ({ icon, label }) => (
       {icon}
     </div>
     <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">{label}</span>
+  </div>
+);
+
+const EdgeLegendItem = ({ color, label }) => (
+  <div className="flex items-center gap-2">
+    <div className="flex items-center">
+      <div
+        className="w-8 h-0.5 rounded-full"
+        style={{ backgroundColor: color }}
+      />
+      <svg
+        width="8"
+        height="8"
+        viewBox="0 0 8 8"
+        fill={color}
+        className="-ml-1"
+      >
+        <path d="M0 0L8 4L0 8Z" />
+      </svg>
+    </div>
+    <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tight">{label}</span>
   </div>
 );

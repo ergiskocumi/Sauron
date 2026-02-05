@@ -137,6 +137,15 @@ class NetworkInterface(BaseModel):
         alias="allowaccess",
         description="Protocolli ammessi (es. ping https ssh)"
     )
+    speed: Optional[str] = Field(
+        None,
+        description="Velocità interfaccia (es. '1000full', '10000full', 'auto')"
+    )
+    link_up_time: Optional[int] = Field(
+        None,
+        alias="link-up-time",
+        description="Tempo da quando il link è up (secondi)"
+    )
 
     @field_validator("is_up", mode="before")
     @classmethod
@@ -178,6 +187,34 @@ class NetworkInterface(BaseModel):
             return binary.count("1")
         except (ValueError, AttributeError):
             return 0
+
+    @property
+    def bandwidth_mbps(self) -> Optional[int]:
+        """
+        Estrae la bandwidth in Mbps dal campo speed.
+
+        Formati supportati:
+        - "1000full" -> 1000 Mbps
+        - "10000full" -> 10000 Mbps
+        - "auto" -> None (non determinabile)
+        """
+        if not self.speed:
+            return None
+
+        # Parse speed string (es. "1000full", "10000half")
+        try:
+            # Rimuovi suffissi "full", "half", "auto"
+            speed_str = self.speed.lower()
+            for suffix in ["full", "half", "auto"]:
+                speed_str = speed_str.replace(suffix, "")
+
+            speed_str = speed_str.strip()
+            if not speed_str:
+                return None
+
+            return int(speed_str)
+        except (ValueError, AttributeError):
+            return None
 
     model_config = {
         "populate_by_name": True,

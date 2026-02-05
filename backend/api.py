@@ -45,6 +45,14 @@ from infrastructure.fortigate_client import FortiGateClient
 # Application Services
 from application.services.topology_service import TopologyService
 from application.services.pathfinder_service import PathfinderService
+from application.services.dijkstra_service import (
+    DijkstraService,
+    PROFILE_BALANCED,
+    PROFILE_BULK,
+    PROFILE_REALTIME,
+    PROFILE_CRITICAL,
+    PROFILE_COST_ONLY,
+)
 from application.services.resolver_service import (
     ResolverService,
     InvalidSourceError,
@@ -153,6 +161,16 @@ class PathRequest(BaseModel):
         description="Massimo numero di hop (default 64)",
         ge=1,
         le=255,
+    )
+    algorithm: str = Field(
+        "lpm",
+        description="Algoritmo di pathfinding: 'lpm' (routing simulation) o 'dijkstra' (shortest path)",
+        examples=["lpm", "dijkstra"],
+    )
+    profile: Optional[str] = Field(
+        None,
+        description="Profilo Dijkstra: 'balanced', 'bulk', 'realtime', 'critical', 'cost_only'",
+        examples=["balanced", "bulk", "realtime"],
     )
 
 
@@ -410,27 +428,80 @@ async def get_topology():
         snapshot = snapshot_repository.load(DEFAULT_SNAPSHOT_PATH)
         topology = snapshot.topology
 
-        # Serializza link (converte Set in List per JSON)
+        # Serializza link con next-hop relationships e metriche avanzate
         links_serialized = []
         for link in topology.links:
-            links_serialized.append({
-                "subnet": link.subnet,
-                "endpoints": list(link.endpoints),
-                "is_point_to_point": link.is_point_to_point,
-                "endpoint_count": link.endpoint_count,
-                "interfaces": [
-                    {
-                        "device_id": iface.device_id,
-                        "vdom": iface.vdom,
-                        "iface_name": iface.iface_name,
-                        "ip": iface.ip_str,
-                        "prefix_len": iface.prefix_len,
-                        "network_id": iface.network_id,
-                        "is_up": iface.is_up,
-                    }
-                    for iface in link.interfaces
-                ],
-            })
+            # Check if this is new format (with source/target) or legacy (with endpoints only)
+            if link.source and link.target:
+                # New directed format
+                links_serialized.append({
+                    "source": link.source,
+                    "target": link.target,
+                    "subnet": link.subnet,
+                    "source_interface": link.source_interface,
+                    "target_ip": link.target_ip,
+                    "cost": link.cost,
+                    "protocol": link.protocol,
+                    "distance": link.distance,
+                    "bandwidth_mbps": link.bandwidth_mbps,
+                    "latency_ms": link.latency_ms,
+                    "reliability": link.reliability,
+                    "is_point_to_point": link.is_point_to_point,
+                    "endpoints": list(link.endpoints),
+                    "endpoint_count": link.endpoint_count,
+                    "interfaces": [
+                        {
+                            "device_id": iface.device_id,
+                            "vdom": iface.vdom,
+                            "iface_name": iface.iface_name,
+                            "ip": iface.ip_str,
+                            "prefix_len": iface.prefix_len,
+                            "network_id": iface.network_id,
+                            "is_up": iface.is_up,
+                            "bandwidth_mbps": iface.bandwidth_mbps,
+                            "interface_type": iface.interface_type,
+                        }
+                        for iface in link.interfaces
+                    ],
+                })
+            else:
+                # Legacy format: derive directed edges from endpoints
+                endpoints = list(link.get_endpoints()) if hasattr(link, 'get_endpoints') else list(link.endpoints) if link.endpoints else []
+                if len(endpoints) >= 2:
+                    # Create pairwise bidirectional edges
+                    for i in range(len(endpoints)):
+                        for j in range(len(endpoints)):
+                            if i != j:
+                                links_serialized.append({
+                                    "source": endpoints[i],
+                                    "target": endpoints[j],
+                                    "subnet": link.subnet,
+                                    "source_interface": link.interfaces[0].iface_name if link.interfaces else "",
+                                    "target_ip": "",
+                                    "cost": link.cost if hasattr(link, 'cost') else 1,
+                                    "protocol": link.protocol if hasattr(link, 'protocol') else "connected",
+                                    "distance": link.distance if hasattr(link, 'distance') else 0,
+                                    "bandwidth_mbps": link.bandwidth_mbps if hasattr(link, 'bandwidth_mbps') else None,
+                                    "latency_ms": link.latency_ms if hasattr(link, 'latency_ms') else None,
+                                    "reliability": link.reliability if hasattr(link, 'reliability') else None,
+                                    "is_point_to_point": link.is_point_to_point if hasattr(link, 'is_point_to_point') else False,
+                                    "endpoints": endpoints,
+                                    "endpoint_count": len(endpoints),
+                                    "interfaces": [
+                                        {
+                                            "device_id": iface.device_id,
+                                            "vdom": iface.vdom,
+                                            "iface_name": iface.iface_name,
+                                            "ip": iface.ip_str,
+                                            "prefix_len": iface.prefix_len,
+                                            "network_id": iface.network_id,
+                                            "is_up": iface.is_up,
+                                            "bandwidth_mbps": iface.bandwidth_mbps,
+                                            "interface_type": iface.interface_type,
+                                        }
+                                        for iface in link.interfaces
+                                    ],
+                                })
 
         return TopologyResponse(
             nodes=list(topology.nodes),
@@ -492,15 +563,39 @@ async def calculate_path(request: PathRequest):
                 detail=f"Invalid destination: {e.message}",
             )
 
-        # Calcola percorso
-        pathfinder = PathfinderService()
-        result = pathfinder.find_path(
-            topology=snapshot.topology,
-            routing_tables=snapshot.routing_tables,
-            start_node=source_node,
-            target_ip=target_ip,
-            max_ttl=request.max_ttl,
-        )
+        # Calcola percorso con algoritmo selezionato
+        if request.algorithm.lower() == "dijkstra":
+            # Dijkstra shortest path
+            logger.info(f"Using Dijkstra algorithm with profile: {request.profile or 'balanced'}")
+
+            # Risolvi profilo
+            profile_map = {
+                "balanced": PROFILE_BALANCED,
+                "bulk": PROFILE_BULK,
+                "realtime": PROFILE_REALTIME,
+                "critical": PROFILE_CRITICAL,
+                "cost_only": PROFILE_COST_ONLY,
+            }
+            profile = profile_map.get(request.profile or "balanced", PROFILE_BALANCED)
+
+            dijkstra = DijkstraService()
+            result = dijkstra.shortest_path(
+                topology=snapshot.topology,
+                start_node=source_node,
+                target_ip=target_ip,
+                profile=profile,
+            )
+        else:
+            # LPM simulation (default)
+            logger.info("Using LPM routing simulation")
+            pathfinder = PathfinderService()
+            result = pathfinder.find_path(
+                topology=snapshot.topology,
+                routing_tables=snapshot.routing_tables,
+                start_node=source_node,
+                target_ip=target_ip,
+                max_ttl=request.max_ttl,
+            )
 
         return result
 

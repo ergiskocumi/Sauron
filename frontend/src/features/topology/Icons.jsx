@@ -2,12 +2,24 @@ import React from 'react';
 
 export const FirewallIcon = () => (
   <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <rect width="48" height="48" rx="8" fill="#EF4444" fillOpacity="0.1" />
-    <path d="M12 14H36V34H12V14Z" stroke="#EF4444" strokeWidth="2" strokeLinejoin="round" />
-    <path d="M12 20H36" stroke="#EF4444" strokeWidth="2" />
-    <path d="M12 28H36" stroke="#EF4444" strokeWidth="2" />
-    <path d="M20 14V34" stroke="#EF4444" strokeWidth="2" />
-    <path d="M28 14V34" stroke="#EF4444" strokeWidth="2" />
+    <defs>
+      <linearGradient id="fw-bg" x1="8" y1="8" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stopColor="#DBEAFE" />
+        <stop offset="1" stopColor="#BFDBFE" />
+      </linearGradient>
+      <linearGradient id="fw-stroke" x1="12" y1="12" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+        <stop offset="0" stopColor="#3B82F6" />
+        <stop offset="1" stopColor="#1D4ED8" />
+      </linearGradient>
+    </defs>
+    <rect width="48" height="48" rx="10" fill="url(#fw-bg)" />
+    <rect x="10" y="12" width="28" height="24" rx="4" stroke="url(#fw-stroke)" strokeWidth="2.2" fill="white" />
+    <path d="M10 20H38" stroke="#3B82F6" strokeWidth="2" />
+    <path d="M10 28H38" stroke="#3B82F6" strokeWidth="2" />
+    <path d="M18 12V36" stroke="#60A5FA" strokeWidth="2" />
+    <path d="M26 12V36" stroke="#60A5FA" strokeWidth="2" />
+    <path d="M34 12V36" stroke="#60A5FA" strokeWidth="2" />
+    <path d="M24 16L26 18L24 20L22 18Z" fill="#1D4ED8" />
   </svg>
 );
 

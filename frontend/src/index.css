@@ -66,3 +66,64 @@ body {
   background-color: white !important;
   border-bottom: 1px solid #e2e8f0 !important;
 }
+
+/* Animated edge for path highlighting */
+@keyframes edge-flow {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.react-flow__edge.animated .react-flow__edge-path,
+.animated-edge {
+  stroke-dasharray: 8 8;
+  animation: edge-flow 0.5s linear infinite;
+}
+
+/* Path highlighted edge glow effect */
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 4;
+}
+
+/* Edge hover effect */
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 4;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+/* Edge label improvements */
+.react-flow__edge-textwrapper {
+  pointer-events: all;
+}
+
+.react-flow__edge-text {
+  font-size: 9px !important;
+  font-weight: 700 !important;
+}
+
+/* Custom arrow markers */
+.react-flow__arrowhead {
+  fill-opacity: 1 !important;
+}
+
+/* Node selection ring */
+.react-flow__node.selected {
+  z-index: 10 !important;
+}
+
+/* Improved connection line */
+.react-flow__connection-line {
+  stroke: #3b82f6;
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+}
+
+/* Minimap customizations */
+.react-flow__minimap {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+}

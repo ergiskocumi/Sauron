@@ -255,27 +255,34 @@ class Link(BaseModel):
 
     Un link rappresenta una connessione diretta tra due nodi come risulta
     dalle routing table (next-hop relationship).
+
+    Supporta anche il formato legacy (solo subnet + endpoints) per backward compatibility.
     """
 
-    source: str = Field(
-        ...,
+    source: Optional[str] = Field(
+        None,
         description="Node key sorgente (es. 'fw1:root')"
     )
-    target: str = Field(
-        ...,
+    target: Optional[str] = Field(
+        None,
         description="Node key destinazione (next-hop, es. 'fw2:root')"
     )
     subnet: str = Field(
         ...,
         description="Network ID della subnet condivisa (es. '192.168.1.0/24')"
     )
-    source_interface: str = Field(
-        ...,
+    source_interface: Optional[str] = Field(
+        None,
         description="Nome interfaccia di uscita dal nodo sorgente (es. 'port1')"
     )
-    target_ip: str = Field(
-        ...,
+    target_ip: Optional[str] = Field(
+        None,
         description="IP del next-hop (gateway) su questo link"
+    )
+    # Legacy field for backward compatibility with old snapshots
+    endpoints: Set[str] = Field(
+        default_factory=set,
+        description="Set of node_keys connected by this link (legacy format)"
     )
     cost: int = Field(
         1,
@@ -304,12 +311,6 @@ class Link(BaseModel):
         description="Punteggio di affidabilità del link (0.0 - 1.0)"
     )
 
-    # Backward compatibility: endpoints field for old code
-    @property
-    def endpoints(self) -> Set[str]:
-        """Endpoints per compatibilità con codice esistente."""
-        return {self.source, self.target}
-
     # Backward compatibility: interfaces field
     interfaces: List[InterfaceRecord] = Field(
         default_factory=list,
@@ -328,7 +329,20 @@ class Link(BaseModel):
     @property
     def endpoint_count(self) -> int:
         """Numero di nodi connessi a questo link."""
-        return 2  # Always 2 in directed graph
+        if self.endpoints:
+            return len(self.endpoints)
+        return 2 if self.source and self.target else 0
+
+    def get_endpoints(self) -> Set[str]:
+        """Returns endpoints, computing from source/target if not set directly."""
+        if self.endpoints:
+            return self.endpoints
+        result = set()
+        if self.source:
+            result.add(self.source)
+        if self.target:
+            result.add(self.target)
+        return result
 
     def __repr__(self) -> str:
         metrics = f"cost={self.cost}"

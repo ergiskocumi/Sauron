@@ -17,13 +17,15 @@ export const PathSimulationPanel = ({
   isCalculating,
   pathResult,
   pathError,
+  sourceNode,
+  setSourceNode,
+  targetIp,
+  setTargetIp,
 }) => {
-  const [sourceNode, setSourceNode] = useState('');
-  const [targetIp, setTargetIp] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
 
     if (!sourceNode) {
       toast.error('Seleziona un nodo sorgente');
