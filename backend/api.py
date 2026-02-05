@@ -6,6 +6,7 @@ Riusa completamente i servizi esistenti senza riscrivere la logica.
 
 Endpoints:
 - GET  /api/inventory         - Lista firewall (token oscurato)
+- POST /api/inventory         - Aggiunge un nuovo firewall all'inventario
 - GET  /api/snapshot/status   - Stato snapshot corrente
 - POST /api/scan              - Avvia scansione asincrona
 - GET  /api/topology          - Topologia completa da snapshot
@@ -120,6 +121,35 @@ class FirewallConfigPublic(BaseModel):
             entry_vdom=config.entry_vdom,
             enabled=config.enabled,
         )
+
+
+class AddFirewallRequest(BaseModel):
+    """Request body per POST /api/inventory."""
+
+    id: str = Field(
+        ...,
+        description="Nome identificativo del firewall",
+        examples=["Firewall Milano"],
+        min_length=1,
+    )
+    host: str = Field(
+        ...,
+        description="IP:Porta del firewall (es. '10.0.0.1:10443')",
+        examples=["10.101.201.1:10443"],
+    )
+    token: str = Field(
+        ...,
+        description="API Token FortiGate per autenticazione",
+        min_length=1,
+    )
+
+
+class AddFirewallResponse(BaseModel):
+    """Risposta per POST /api/inventory."""
+
+    status: str
+    message: str
+    firewall: FirewallConfigPublic
 
 
 class SnapshotStatusResponse(BaseModel):
@@ -247,6 +277,50 @@ async def get_inventory():
     except Exception as e:
         logger.error(f"Unexpected error loading inventory: {e}")
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+@app.post("/api/inventory", response_model=AddFirewallResponse)
+async def add_firewall(request: AddFirewallRequest):
+    """
+    Aggiunge un nuovo firewall all'inventario.
+
+    Controlli:
+    - Nome duplicato (case-insensitive)
+    - IP duplicato (ignora porta)
+    - Token viene salvato ma non controllato per unicità
+
+    Returns:
+        Firewall aggiunto (senza token)
+
+    Raises:
+        400: Se dati non validi o duplicati
+        500: Se errore di scrittura
+    """
+    try:
+        loader = InventoryLoader("inventory.json")
+        entry = loader.add_firewall({
+            "id": request.id,
+            "host": request.host,
+            "token": request.token,
+        })
+
+        return AddFirewallResponse(
+            status="created",
+            message=f"Firewall '{request.id}' aggiunto con successo.",
+            firewall=FirewallConfigPublic(
+                id=entry["id"],
+                host=entry["host"],
+                entry_vdom="root",
+                enabled=True,
+            ),
+        )
+
+    except InventoryError as e:
+        logger.warning(f"Add firewall rejected: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error adding firewall: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Errore interno: {e}")
 
 
 @app.get("/api/snapshot/status", response_model=SnapshotStatusResponse)

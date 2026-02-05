@@ -34,12 +34,14 @@ import {
 import { Badge } from '../../components/ui/Badge';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Alert } from '../../components/ui/Alert';
-import { RefreshCw, Server, Globe, Shield, Copy, Check, ExternalLink } from 'lucide-react';
+import { RefreshCw, Server, Globe, Shield, Copy, Check, ExternalLink, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { AddFirewallForm } from './AddFirewallForm';
 
 export const InventoryTable = () => {
   const { inventory, loading, error, refetch } = useInventory();
   const [copiedId, setCopiedId] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const copyToClipboard = (text, id) => {
     navigator.clipboard.writeText(text);
@@ -86,13 +88,22 @@ export const InventoryTable = () => {
             </span>
           </div>
         </div>
-        <button
-          onClick={refetch}
-          className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-2xl transition-all group"
-          title="Aggiorna Inventario"
-        >
-          <RefreshCw className="w-5 h-5 group-active:rotate-180 transition-transform" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs tracking-tight transition-all flex items-center gap-2 shadow-lg shadow-blue-500/20"
+          >
+            <Plus size={16} />
+            Aggiungi Firewall
+          </button>
+          <button
+            onClick={refetch}
+            className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-2xl transition-all group"
+            title="Aggiorna Inventario"
+          >
+            <RefreshCw className="w-5 h-5 group-active:rotate-180 transition-transform" />
+          </button>
+        </div>
       </CardHeader>
 
       <CardBody>
@@ -161,6 +172,13 @@ export const InventoryTable = () => {
           </Table>
         )}
       </CardBody>
+
+      {showAddForm && (
+        <AddFirewallForm
+          onClose={() => setShowAddForm(false)}
+          onSuccess={refetch}
+        />
+      )}
     </Card>
   );
 };

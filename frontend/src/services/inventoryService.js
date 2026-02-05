@@ -42,6 +42,23 @@ export const getInventory = async () => {
 };
 
 /**
+ * Aggiunge un nuovo firewall all'inventario
+ *
+ * @param {Object} firewall - Dati del firewall { id, host, token }
+ * @returns {Promise<Object>} Risposta con status, message e firewall aggiunto
+ * @throws {Error} Se la richiesta fallisce (duplicato, validazione, ecc.)
+ */
+export const addFirewall = async (firewall) => {
+  try {
+    const response = await apiClient.post('/api/inventory', firewall);
+    return response.data;
+  } catch (error) {
+    const detail = error.response?.data?.detail;
+    throw new Error(detail || error.userMessage || 'Errore nell\'aggiunta del firewall');
+  }
+};
+
+/**
  * Conta i firewall abilitati e disabilitati
  *
  * @param {Array} inventory - Lista di firewall
