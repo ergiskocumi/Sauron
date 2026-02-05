@@ -56,18 +56,22 @@ class TopologyService:
     def build_topology(
         self,
         interfaces: List[InterfaceRecord],
+        routing_tables: Optional[Dict[str, List[Any]]] = None,
     ) -> Topology:
         """
-        Costruisce la topologia da una lista di InterfaceRecord.
+        Costruisce la topologia da interfacce e routing tables.
 
-        Algoritmo O(n) dove n = numero di interfacce:
-        1. Bucket by subnet O(n)
-        2. Extract links O(n)
+        Se routing_tables e' fornito, usa next-hop relationships (PREFERITO).
+        Altrimenti fallback a subnet bucketing (LEGACY).
+
+        Algoritmo con routing tables O(R + I) dove R = routes, I = interfaces:
+        1. Build IP index O(I)
+        2. Extract links from routes O(R)
         3. Build adjacency O(L) dove L = numero link
-        4. Build IP index O(n)
 
         Args:
             interfaces: Lista di InterfaceRecord (solo interfacce UP con IP valido)
+            routing_tables: Dict[node_key, List[Route]] (opzionale)
 
         Returns:
             Topology completa con indici per query efficienti
@@ -81,18 +85,29 @@ class TopologyService:
         ]
         logger.debug(f"Active interfaces after filtering: {len(active_interfaces)}")
 
-        # Step 2: Bucket by subnet
-        subnet_buckets = self._bucket_by_subnet(active_interfaces)
-        logger.debug(f"Subnet buckets: {len(subnet_buckets)}")
+        # Step 2: Build IP index (needed for next-hop lookup)
+        ip_to_owners = self._build_ip_index(active_interfaces, [])
 
-        # Step 3: Extract links (only subnets with 2+ different nodes)
-        links = self._extract_links(subnet_buckets)
+        # Step 3: Extract links
+        if routing_tables:
+            logger.info("Using ROUTING TABLE based topology (next-hop)")
+            links = self._extract_links_from_routing_tables(
+                routing_tables,
+                active_interfaces,
+                ip_to_owners,
+            )
+        else:
+            logger.warning("Using LEGACY SUBNET BUCKETING (full mesh)")
+            subnet_buckets = self._bucket_by_subnet(active_interfaces)
+            links = self._extract_links_legacy(subnet_buckets)
+
         logger.debug(f"Links extracted: {len(links)}")
 
         # Step 4: Collect all nodes
         nodes: Set[str] = set()
         for link in links:
-            nodes.update(link.endpoints)
+            nodes.add(link.source)
+            nodes.add(link.target)
 
         # Also add nodes from interfaces not in links (isolated nodes)
         for iface in active_interfaces:
@@ -102,9 +117,6 @@ class TopologyService:
 
         # Step 5: Build adjacency list
         adjacency = self._build_adjacency_list(links)
-
-        # Step 6: Build IP index
-        ip_to_owners = self._build_ip_index(active_interfaces, links)
 
         topology = Topology(
             nodes=nodes,
@@ -157,8 +169,8 @@ class TopologyService:
             all_interfaces.extend(interfaces)
             routing_tables.update(routes_by_vdom)
 
-        # Build topology from collected interfaces
-        topology = self.build_topology(all_interfaces)
+        # Build topology from collected interfaces with routing tables
+        topology = self.build_topology(all_interfaces, routing_tables)
 
         return topology, routing_tables
 
@@ -243,12 +255,117 @@ class TopologyService:
 
         return dict(buckets)
 
-    def _extract_links(
+    def _extract_links_from_routing_tables(
+        self,
+        routing_tables: Dict[str, List[Any]],
+        interfaces: List[InterfaceRecord],
+        ip_to_owners: Dict[int, List[Tuple[str, int]]],
+    ) -> List[Link]:
+        """
+        Estrae link basati su next-hop relationships dalle routing tables.
+
+        Algoritmo:
+        1. Per ogni nodo, leggi le sue routes
+        2. Per ogni route con gateway != 0.0.0.0:
+           a. Cerca il nodo proprietario del gateway IP
+           b. Se trovato, crea link diretto source -> target
+        3. Deduplica link identici
+
+        Args:
+            routing_tables: Dict[node_key, List[Route]]
+            interfaces: Lista di interfacce (per trovare subnet)
+            ip_to_owners: IP index per lookup veloce
+
+        Returns:
+            Lista di Link diretti con metriche
+        """
+        links: List[Link] = []
+        seen_links: Set[Tuple[str, str, str]] = set()  # (source, target, subnet)
+
+        # Build interface lookup by node and name
+        iface_lookup: Dict[Tuple[str, str], InterfaceRecord] = {}
+        for iface in interfaces:
+            key = (iface.node.node_key, iface.iface_name)
+            iface_lookup[key] = iface
+
+        for source_node_key, routes in routing_tables.items():
+            for route in routes:
+                # Skip routes without gateway (local/connected)
+                if route.gateway == "0.0.0.0":
+                    continue
+
+                # Find target node by gateway IP
+                try:
+                    gateway_ip_int = InterfaceRecord._ip_to_int(route.gateway)
+                except (ValueError, Exception):
+                    logger.debug(f"Invalid gateway IP: {route.gateway}")
+                    continue
+
+                # Lookup target node
+                if gateway_ip_int not in ip_to_owners:
+                    # Gateway not found in topology (external network)
+                    continue
+
+                target_candidates = ip_to_owners[gateway_ip_int]
+                if not target_candidates:
+                    continue
+
+                target_node_key = target_candidates[0][0]
+
+                # Find source interface for this route
+                source_iface_key = (source_node_key, route.interface)
+                if source_iface_key not in iface_lookup:
+                    logger.debug(
+                        f"Interface {route.interface} not found for {source_node_key}"
+                    )
+                    continue
+
+                source_iface = iface_lookup[source_iface_key]
+                subnet = source_iface.network_id
+
+                # Deduplicate: same source, target, subnet
+                link_signature = (source_node_key, target_node_key, subnet)
+                if link_signature in seen_links:
+                    continue
+                seen_links.add(link_signature)
+
+                # Calculate link metrics
+                bandwidth_mbps = source_iface.bandwidth_mbps
+                latency_ms = source_iface.estimated_latency_ms
+                reliability = source_iface.reliability_score
+
+                # Create directed link with enriched metrics
+                link = Link(
+                    source=source_node_key,
+                    target=target_node_key,
+                    subnet=subnet,
+                    source_interface=route.interface,
+                    target_ip=route.gateway,
+                    cost=route.metric,
+                    protocol=route.protocol,
+                    distance=route.distance,
+                    bandwidth_mbps=bandwidth_mbps,
+                    latency_ms=latency_ms,
+                    reliability=reliability,
+                    interfaces=[source_iface],
+                )
+                links.append(link)
+                logger.debug(
+                    f"Link: {source_node_key} -> {target_node_key} "
+                    f"via {subnet} (cost={route.metric}, proto={route.protocol}, "
+                    f"bw={bandwidth_mbps}Mbps, lat={latency_ms:.2f}ms, rel={reliability:.2f})"
+                )
+
+        return links
+
+    def _extract_links_legacy(
         self,
         subnet_buckets: Dict[str, List[InterfaceRecord]],
     ) -> List[Link]:
         """
-        Estrae link da bucket con 2+ nodi diversi.
+        Estrae link da bucket con 2+ nodi diversi (LEGACY FULL MESH).
+
+        DEPRECATO: Usa _extract_links_from_routing_tables() invece.
 
         Complessita': O(n) totale
 
@@ -256,7 +373,7 @@ class TopologyService:
             subnet_buckets: Bucket di interfacce per subnet
 
         Returns:
-            Lista di Link
+            Lista di Link (convertiti in formato directed)
         """
         links: List[Link] = []
 
@@ -268,14 +385,56 @@ class TopologyService:
 
             # Crea link solo se 2+ nodi diversi sulla stessa subnet
             if len(nodes_in_bucket) >= 2:
-                link = Link(
-                    subnet=subnet,
-                    endpoints=nodes_in_bucket,
-                    interfaces=interfaces,
-                )
-                links.append(link)
+                # Create pairwise links (full mesh)
+                node_list = list(nodes_in_bucket)
+                for i in range(len(node_list)):
+                    for j in range(i + 1, len(node_list)):
+                        source = node_list[i]
+                        target = node_list[j]
+
+                        # Find interfaces for source and target
+                        source_iface = next(
+                            (iface for iface in interfaces if iface.node.node_key == source),
+                            None
+                        )
+                        target_iface = next(
+                            (iface for iface in interfaces if iface.node.node_key == target),
+                            None
+                        )
+
+                        if source_iface and target_iface:
+                            # Create bidirectional links with metrics
+                            links.append(Link(
+                                source=source,
+                                target=target,
+                                subnet=subnet,
+                                source_interface=source_iface.iface_name,
+                                target_ip=target_iface.ip_str,
+                                cost=1,
+                                protocol="connected",
+                                distance=0,
+                                bandwidth_mbps=source_iface.bandwidth_mbps,
+                                latency_ms=source_iface.estimated_latency_ms,
+                                reliability=source_iface.reliability_score,
+                                interfaces=[source_iface, target_iface],
+                            ))
+                            links.append(Link(
+                                source=target,
+                                target=source,
+                                subnet=subnet,
+                                source_interface=target_iface.iface_name,
+                                target_ip=source_iface.ip_str,
+                                cost=1,
+                                protocol="connected",
+                                distance=0,
+                                bandwidth_mbps=target_iface.bandwidth_mbps,
+                                latency_ms=target_iface.estimated_latency_ms,
+                                reliability=target_iface.reliability_score,
+                                interfaces=[target_iface, source_iface],
+                            ))
+
                 logger.debug(
-                    f"Link created: {subnet} connects {len(nodes_in_bucket)} nodes"
+                    f"Legacy links: {subnet} connects {len(nodes_in_bucket)} nodes"
                 )
 
         return links
@@ -285,15 +444,14 @@ class TopologyService:
         links: List[Link],
     ) -> Dict[str, List[Tuple[str, int]]]:
         """
-        Costruisce lista di adiacenza bidirezionale.
+        Costruisce lista di adiacenza da link diretti.
 
-        Per ogni link, aggiunge un arco tra ogni coppia di nodi.
+        Per ogni link source -> target, aggiunge un arco nell'adjacency list.
 
-        Complessita': O(L * E^2) dove L = link, E = endpoints per link
-        In pratica O(L) perche' E e' tipicamente 2-3.
+        Complessita': O(L) dove L = numero link
 
         Args:
-            links: Lista di Link
+            links: Lista di Link diretti
 
         Returns:
             Dict[node_key, List[(neighbor_key, link_index)]]
@@ -301,13 +459,8 @@ class TopologyService:
         adjacency: Dict[str, List[Tuple[str, int]]] = defaultdict(list)
 
         for link_idx, link in enumerate(links):
-            # Per ogni coppia di nodi nel link
-            endpoints = list(link.endpoints)
-            for i, node_a in enumerate(endpoints):
-                for node_b in endpoints[i + 1:]:
-                    # Arco bidirezionale
-                    adjacency[node_a].append((node_b, link_idx))
-                    adjacency[node_b].append((node_a, link_idx))
+            # Directed edge: source -> target
+            adjacency[link.source].append((link.target, link_idx))
 
         return dict(adjacency)
 
