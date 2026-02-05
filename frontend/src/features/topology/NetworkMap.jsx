@@ -232,7 +232,7 @@ const NetworkEdge = memo(({
         markerEnd={markerEnd}
       />
 
-      {/* Label IP/Subnet - Visibile solo se evidenziato o hover (opzionale) */}
+      {/* Label IP/Subnet sempre visibili ma discrete */}
       <EdgeLabelRenderer>
         <div
           style={{
@@ -242,20 +242,27 @@ const NetworkEdge = memo(({
           }}
           className="z-50"
         >
-          {isHighlighted && (
-            <div className={cn(
-              "flex flex-col items-center px-2 py-1 rounded-lg border transition-all duration-300 backdrop-blur-md shadow-sm bg-blue-600 border-blue-500 scale-110 shadow-lg shadow-blue-500/30 text-white"
-            )}>
-              {edgeHopIndex && (
-                <span className="text-[7px] font-black text-blue-100 mb-0.5 uppercase tracking-tighter">
-                  Hop {edgeHopIndex}
-                </span>
-              )}
-              <span className="text-[9px] font-bold font-mono tracking-tight text-white">
-                {data?.subnet}
+          <div className={cn(
+            "flex flex-col items-center px-1.5 py-0.5 rounded-md border transition-all duration-300 backdrop-blur-sm shadow-sm",
+            isHighlighted
+              ? "bg-blue-600 border-blue-500 scale-110 shadow-lg shadow-blue-500/30 text-white z-10"
+              : cn(
+                  "bg-white/80 border-slate-200 text-slate-500 opacity-70",
+                  pathActive && "opacity-0 scale-50" // Scompaiono se stiamo guardando un ALTRO percorso
+                )
+          )}>
+            {isHighlighted && edgeHopIndex && (
+              <span className="text-[6px] font-black text-blue-100 mb-0.5 uppercase tracking-tighter">
+                Hop {edgeHopIndex}
               </span>
-            </div>
-          )}
+            )}
+            <span className={cn(
+              "text-[8px] font-bold font-mono tracking-tight",
+              isHighlighted ? "text-white" : "text-slate-600"
+            )}>
+              {data?.subnet}
+            </span>
+          </div>
         </div>
       </EdgeLabelRenderer>
     </>
