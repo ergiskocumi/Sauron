@@ -146,9 +146,9 @@ export const PathSimulationPanel = ({
               </div>
               <p className="text-sm font-bold text-blue-700 mb-3">{pathResult.summary}</p>
 
-              {/* Hop list visualization */}
+              {/* Hop list visualization con interfacce */}
               {pathResult.nodeKeys && pathResult.nodeKeys.length > 0 && (
-                <div className="space-y-2 mb-3">
+                <div className="space-y-2.5 mb-3">
                   <p className="text-[9px] font-black text-blue-800 uppercase tracking-widest">Percorso:</p>
                   {pathResult.nodeKeys.map((nodeKey, idx) => {
                     const parts = nodeKey.split(':');
@@ -156,26 +156,57 @@ export const PathSimulationPanel = ({
                     const vdom = parts[1] || 'root';
                     const isFirst = idx === 0;
                     const isLast = idx === pathResult.nodeKeys.length - 1;
+
+                    // Ottieni info interfacce dal fullResult se disponibile
+                    const hopDetail = pathResult.fullResult?.hops?.[idx];
+                    const ingressIface = hopDetail?.ingress_interface;
+                    const egressIface = hopDetail?.egress_interface;
+
                     return (
-                      <div key={nodeKey} className="flex items-center gap-2">
-                        <div className={cn(
-                          "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm",
-                          isFirst
-                            ? "bg-green-500 text-white"
-                            : isLast
-                              ? "bg-blue-600 text-white"
-                              : "bg-white text-slate-600 border border-slate-200"
-                        )}>
-                          {idx + 1}
+                      <div key={nodeKey} className="space-y-1">
+                        {/* Hop node */}
+                        <div className="flex items-center gap-2">
+                          <div className={cn(
+                            "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black shadow-sm",
+                            isFirst
+                              ? "bg-green-500 text-white"
+                              : isLast
+                                ? "bg-orange-500 text-white"
+                                : "bg-blue-500 text-white"
+                          )}>
+                            {idx + 1}
+                          </div>
+                          <div className="flex-1">
+                            <span className="text-[11px] font-bold text-slate-700">{deviceId}</span>
+                            <span className="text-[10px] text-slate-400 ml-1">({vdom})</span>
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <span className="text-[11px] font-bold text-slate-700">{deviceId}</span>
-                          <span className="text-[10px] text-slate-400 ml-1">({vdom})</span>
-                        </div>
+
+                        {/* Interface details se disponibili */}
+                        {(ingressIface || egressIface) && (
+                          <div className="ml-8 space-y-1 text-[8px] text-slate-500 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                            {ingressIface && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-slate-400">📥</span>
+                                <span className="font-mono font-bold text-slate-600">in: {ingressIface}</span>
+                              </div>
+                            )}
+                            {egressIface && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-slate-400">📤</span>
+                                <span className="font-mono font-bold text-slate-600">out: {egressIface}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Arrow to next hop */}
                         {!isLast && (
-                          <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                          </svg>
+                          <div className="flex justify-center">
+                            <svg className="w-4 h-4 text-blue-300 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                            </svg>
+                          </div>
                         )}
                       </div>
                     );

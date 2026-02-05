@@ -238,36 +238,69 @@ const NetworkEdge = memo(({
         markerEnd={markerEnd}
       />
 
-      {/* Label IP/Subnet sempre visibili ma discrete */}
+      {/* Label IP/Subnet + Metriche Link */}
       <EdgeLabelRenderer>
         <div
           style={{
             position: 'absolute',
             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-            pointerEvents: 'none',
+            pointerEvents: 'all',
           }}
-          className="z-50"
+          className="z-50 group/edge-label cursor-help"
         >
           <div className={cn(
-            "flex flex-col items-center px-1.5 py-0.5 rounded-md border backdrop-blur-sm shadow-sm",
+            "flex flex-col items-center px-2 py-1 rounded-lg border backdrop-blur-md shadow-md transition-all duration-300",
             isHighlighted
-              ? "bg-blue-600 border-blue-500 scale-110 shadow-lg shadow-blue-500/30 text-white z-10 transition-all duration-300"
-              : cn(
-                  "bg-white/80 border-slate-200 text-slate-500 opacity-70",
-                  pathActive && "opacity-0 scale-50 transition-opacity duration-300" 
-                )
+              ? "bg-blue-600 border-blue-500 scale-110 shadow-lg shadow-blue-500/30 text-white"
+              : "bg-white/90 border-slate-200 text-slate-600 opacity-75 group-hover/edge-label:opacity-100 group-hover/edge-label:scale-110 group-hover/edge-label:bg-white group-hover/edge-label:border-blue-300 group-hover/edge-label:shadow-lg"
           )}>
+            {/* Hop indicator */}
             {isHighlighted && edgeHopIndex && (
-              <span className="text-[6px] font-black text-blue-100 mb-0.5 uppercase tracking-tighter">
+              <span className="text-[6px] font-black text-blue-100 uppercase tracking-tighter mb-0.5">
                 Hop {edgeHopIndex}
               </span>
             )}
+
+            {/* Subnet/IP */}
             <span className={cn(
-              "text-[8px] font-bold font-mono tracking-tight",
-              isHighlighted ? "text-white" : "text-slate-600"
+              "text-[8px] font-bold font-mono tracking-tight whitespace-nowrap",
+              isHighlighted ? "text-white" : "text-slate-600 group-hover/edge-label:text-blue-600"
             )}>
               {data?.subnet}
             </span>
+
+            {/* Link Metrics - visibili in hover o quando highlighted */}
+            <div className={cn(
+              "flex gap-1.5 mt-1 text-[6px] font-black uppercase tracking-widest transition-all duration-300 flex-wrap justify-center",
+              isHighlighted || "group-hover/edge-label"
+                ? "opacity-100 max-h-12"
+                : "opacity-0 max-h-0 overflow-hidden"
+            )}>
+              {data?.cost !== undefined && data?.cost !== null && (
+                <div className={cn(
+                  "px-1.5 py-0.5 rounded-full",
+                  isHighlighted ? "bg-blue-400/30 text-blue-100" : "bg-slate-100 text-slate-600"
+                )}>
+                  💰 Cost:{data.cost}
+                </div>
+              )}
+              {data?.bandwidth_mbps && (
+                <div className={cn(
+                  "px-1.5 py-0.5 rounded-full",
+                  isHighlighted ? "bg-blue-400/30 text-blue-100" : "bg-slate-100 text-slate-600"
+                )}>
+                  ⚡ {data.bandwidth_mbps}Mbps
+                </div>
+              )}
+              {data?.latency_ms && (
+                <div className={cn(
+                  "px-1.5 py-0.5 rounded-full",
+                  isHighlighted ? "bg-blue-400/30 text-blue-100" : "bg-slate-100 text-slate-600"
+                )}>
+                  ⏱️ {data.latency_ms}ms
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </EdgeLabelRenderer>
@@ -342,6 +375,10 @@ export const NetworkMap = () => {
   const [availableNodes, setAvailableNodes] = useState([]);
   const [showLegend, setShowLegend] = useState(true);
   const [selectionStage, setSelectionStage] = useState('source'); // 'source' or 'target'
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -579,6 +616,39 @@ export const NetworkMap = () => {
     resetPath();
   }, [originalNodes, originalEdges, resetPath, setNodes, setEdges]);
 
+  // Search handler
+  const handleSearch = useCallback((query) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const lowerQuery = query.toLowerCase();
+    const results = availableNodes.filter(nodeKey => {
+      const parts = nodeKey.split(':');
+      const deviceId = parts[0].toLowerCase();
+      const vdom = (parts[1] || 'root').toLowerCase();
+      return deviceId.includes(lowerQuery) || vdom.includes(lowerQuery);
+    });
+    setSearchResults(results);
+  }, [availableNodes]);
+
+  // Navigate to search result
+  const handleSearchResultClick = useCallback((nodeKey) => {
+    const searchNode = nodes.find(n => n.id === nodeKey);
+    if (searchNode) {
+      // Highlight the node
+      setNodes(nds => nds.map(n => ({
+        ...n,
+        selected: n.id === nodeKey
+      })));
+      setSearchQuery('');
+      setSearchResults([]);
+      toast.success(`Found: ${nodeKey}`);
+    }
+  }, [nodes, setNodes]);
+
   // Handle node click for quick path selection
   const onNodeClick = useCallback(async (event, node) => {
     // If a path is already showing, reset before starting new selection
@@ -662,7 +732,7 @@ export const NetworkMap = () => {
         <Controls showInteractive={false} className="!bg-white !border-slate-200 !shadow-lg !rounded-xl overflow-hidden" />
 
         {/* Path Simulation Panel */}
-        <Panel position="top-left" className="!m-4">
+        <Panel position="top-left" className="!m-4 flex flex-col gap-3 pointer-events-auto">
           <PathSimulationPanel
             availableNodes={availableNodes}
             onCalculatePath={handleCalculatePath}
@@ -675,6 +745,52 @@ export const NetworkMap = () => {
             targetIp={targetIp}
             setTargetIp={setTargetIp}
           />
+
+          {/* Search Box */}
+          <div className="bg-white/95 backdrop-blur-md rounded-3xl border border-slate-200 shadow-2xl overflow-hidden">
+            <div className="px-6 py-4">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-2.5 bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl shadow-lg shadow-purple-500/20">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <div className="text-left">
+                  <h3 className="text-sm font-bold text-slate-800 tracking-tight">Search Device</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Find by name</p>
+                </div>
+              </div>
+
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => handleSearch(e.target.value)}
+                placeholder="es. fw-milano, root..."
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all placeholder-slate-400"
+              />
+
+              {/* Search Results */}
+              {searchResults.length > 0 && (
+                <div className="mt-3 space-y-2 max-h-64 overflow-y-auto">
+                  {searchResults.map((nodeKey) => (
+                    <button
+                      key={nodeKey}
+                      onClick={() => handleSearchResultClick(nodeKey)}
+                      className="w-full text-left px-3 py-2 bg-gradient-to-r from-purple-50 to-purple-100/50 hover:from-purple-100 hover:to-purple-200 border border-purple-100 rounded-lg transition-all"
+                    >
+                      <span className="text-[11px] font-bold text-purple-900">{nodeKey}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {searchQuery && searchResults.length === 0 && (
+                <div className="mt-3 text-center py-2">
+                  <p className="text-[10px] text-slate-400">No devices found</p>
+                </div>
+              )}
+            </div>
+          </div>
         </Panel>
 
         <Panel position="top-right">
