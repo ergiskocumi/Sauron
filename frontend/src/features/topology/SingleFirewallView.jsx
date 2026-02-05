@@ -13,7 +13,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
-import { Shield, ArrowLeft, ToggleLeft, ToggleRight, X, ChevronRight } from 'lucide-react';
+import { Shield, ArrowLeft, ToggleLeft, ToggleRight, X, ChevronRight, Users, Wrench } from 'lucide-react';
 import { FirewallIcon } from './Icons';
 import { cn } from '../../lib/utils';
 
@@ -44,8 +44,35 @@ const PROTOCOL_COLORS = {
 const getProtocolStyle = (protocol) =>
   PROTOCOL_COLORS[protocol?.toLowerCase()] || { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-600', dot: 'bg-slate-400' };
 
+const SIMPLE_LABELS = {
+  vdom: 'Network Zone',
+  iface: 'connections',
+  rte: 'rules',
+  interVdom: 'Internal Link',
+  external: 'External Link',
+};
+
+const computeHealthStatus = (interfaces) => {
+  const total = interfaces?.length || 0;
+  if (total === 0) return { status: 'critical', color: 'bg-red-500', text: 'Critical' };
+  const up = interfaces.filter((i) => i.is_up).length;
+  const ratio = up / total;
+  if (ratio >= 1) return { status: 'healthy', color: 'bg-emerald-500', text: 'Healthy' };
+  if (ratio >= 0.5) return { status: 'warning', color: 'bg-amber-500', text: 'Warning' };
+  return { status: 'critical', color: 'bg-red-500', text: 'Critical' };
+};
+
+const computeOverallHealth = (vdoms) => {
+  if (!vdoms?.length) return { status: 'critical', color: 'bg-red-500', text: 'CRITICAL' };
+  const statuses = vdoms.map((v) => computeHealthStatus(v.interfaces).status);
+  if (statuses.every((s) => s === 'healthy')) return { status: 'healthy', color: 'bg-emerald-500', text: 'HEALTHY' };
+  if (statuses.some((s) => s === 'critical')) return { status: 'critical', color: 'bg-red-500', text: 'CRITICAL' };
+  return { status: 'warning', color: 'bg-amber-500', text: 'WARNING' };
+};
+
 // Calculate VDOM card height based on interface count
-const calcVdomHeight = (ifaceCount) => {
+const calcVdomHeight = (ifaceCount, detailLevel = 'expert') => {
+  if (detailLevel === 'simple') return 130;
   const visible = Math.min(ifaceCount, MAX_VISIBLE_IFACES);
   const base = 90; // header (name + protocol summary)
   const ifaceHeader = 22;
@@ -61,8 +88,12 @@ const calcVdomHeight = (ifaceCount) => {
 
 /** VDOM Card - shows interfaces inline, click to open detail panel */
 const VdomCard = memo(({ data, selected }) => {
+  const isSimple = data.detailLevel === 'simple';
   const visibleIfaces = data.interfaces?.slice(0, MAX_VISIBLE_IFACES) || [];
   const hiddenCount = Math.max(0, (data.interfaces?.length || 0) - MAX_VISIBLE_IFACES);
+  const totalIfaces = data.interfaces?.length || 0;
+  const upCount = data.interfaces?.filter((i) => i.is_up).length || 0;
+  const health = computeHealthStatus(data.interfaces);
 
   return (
     <div
@@ -77,88 +108,126 @@ const VdomCard = memo(({ data, selected }) => {
     >
       <Handle type="target" position={Position.Top} className="!w-2 !h-2 !bg-violet-400 !border-2 !border-white !-top-1" />
 
-      {/* Header */}
-      <div className="px-4 pt-3 pb-2 border-b border-violet-100">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-violet-100">
-            <Shield className="w-4 h-4 text-violet-600" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-black text-[12px] text-violet-900 tracking-tight truncate">
-              {data.label}
+      {isSimple ? (
+        /* ── Simple Mode ── */
+        <div className="px-4 py-3">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="p-1.5 rounded-lg bg-violet-100">
+              <Shield className="w-4 h-4 text-violet-600" />
             </div>
-            <div className="text-[9px] font-bold text-violet-400 uppercase tracking-widest">VDOM</div>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-[8px] font-bold text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded">
-              {data.interfaces?.length || 0} iface
-            </span>
-            <span className="text-[8px] font-bold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded">
-              {data.routesCount} rte
-            </span>
-          </div>
-        </div>
-
-        {/* Protocol summary badges */}
-        {data.routeProtocols && Object.keys(data.routeProtocols).length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1.5">
-            {Object.entries(data.routeProtocols).map(([proto, count]) => {
-              const ps = getProtocolStyle(proto);
-              return (
-                <span key={proto} className={cn("text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded", ps.bg, ps.text)}>
-                  {proto}: {count}
-                </span>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Interface Table */}
-      <div className="px-3 py-2">
-        <div className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-1 px-1">
-          Interfaces
-        </div>
-        <div className="space-y-0.5">
-          {visibleIfaces.map((iface) => {
-            const typeBadge = IFACE_TYPE_BADGE[iface.interface_type?.toLowerCase()] || null;
-            return (
-              <div
-                key={iface.name}
-                className={cn(
-                  "flex items-center gap-1.5 px-1.5 py-1 rounded-lg text-[9px]",
-                  iface.is_up ? "bg-slate-50" : "bg-red-50/50"
-                )}
-              >
-                {/* Status dot */}
-                <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", iface.is_up ? "bg-emerald-500" : "bg-red-400")} />
-                {/* Name */}
-                <span className={cn("font-bold truncate w-[72px] shrink-0", iface.is_up ? "text-slate-800" : "text-red-400 line-through")}>
-                  {iface.name}
-                </span>
-                {/* IP/Prefix */}
-                <span className="font-mono text-slate-500 truncate flex-1">
-                  {iface.ip}/{iface.prefix_len}
-                </span>
-                {/* Type badge */}
-                {typeBadge && (
-                  <span className={cn("text-[7px] font-bold px-1 py-0.5 rounded shrink-0", typeBadge.cls)}>
-                    {typeBadge.label}
-                  </span>
-                )}
+            <div className="flex-1 min-w-0">
+              <div className="font-black text-[12px] text-violet-900 tracking-tight truncate">
+                {data.label}
               </div>
-            );
-          })}
-        </div>
-
-        {hiddenCount > 0 && (
-          <div className="text-center mt-1">
-            <span className="text-[8px] font-bold text-violet-500 cursor-pointer hover:underline">
-              +{hiddenCount} more — click to expand
+              <div className="text-[9px] font-bold text-violet-400 uppercase tracking-widest">{SIMPLE_LABELS.vdom}</div>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <div className={cn("w-2.5 h-2.5 rounded-full", health.color)} />
+              <span className={cn(
+                "text-[10px] font-black",
+                health.status === 'healthy' ? 'text-emerald-700' : health.status === 'warning' ? 'text-amber-700' : 'text-red-700'
+              )}>
+                {health.text}
+              </span>
+            </div>
+            <span className="text-[10px] font-bold text-slate-500">
+              {upCount}/{totalIfaces} active
             </span>
           </div>
-        )}
-      </div>
+          <div className="mt-2 text-center">
+            <span className="text-2xl font-black text-violet-700">{totalIfaces}</span>
+            <span className="text-[9px] font-bold text-slate-400 ml-1">{SIMPLE_LABELS.iface}</span>
+          </div>
+        </div>
+      ) : (
+        /* ── Expert Mode ── */
+        <>
+          {/* Header */}
+          <div className="px-4 pt-3 pb-2 border-b border-violet-100">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-violet-100">
+                <Shield className="w-4 h-4 text-violet-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-black text-[12px] text-violet-900 tracking-tight truncate">
+                  {data.label}
+                </div>
+                <div className="text-[9px] font-bold text-violet-400 uppercase tracking-widest">VDOM</div>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[8px] font-bold text-violet-500 bg-violet-50 px-1.5 py-0.5 rounded">
+                  {totalIfaces} iface
+                </span>
+                <span className="text-[8px] font-bold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded">
+                  {data.routesCount} rte
+                </span>
+              </div>
+            </div>
+
+            {/* Protocol summary badges */}
+            {data.routeProtocols && Object.keys(data.routeProtocols).length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1.5">
+                {Object.entries(data.routeProtocols).map(([proto, count]) => {
+                  const ps = getProtocolStyle(proto);
+                  return (
+                    <span key={proto} className={cn("text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded", ps.bg, ps.text)}>
+                      {proto}: {count}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Interface Table */}
+          <div className="px-3 py-2">
+            <div className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-1 px-1">
+              Interfaces
+            </div>
+            <div className="space-y-0.5">
+              {visibleIfaces.map((iface) => {
+                const typeBadge = IFACE_TYPE_BADGE[iface.interface_type?.toLowerCase()] || null;
+                return (
+                  <div
+                    key={iface.name}
+                    className={cn(
+                      "flex items-center gap-1.5 px-1.5 py-1 rounded-lg text-[9px]",
+                      iface.is_up ? "bg-slate-50" : "bg-red-50/50"
+                    )}
+                  >
+                    {/* Status dot */}
+                    <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", iface.is_up ? "bg-emerald-500" : "bg-red-400")} />
+                    {/* Name */}
+                    <span className={cn("font-bold truncate w-[72px] shrink-0", iface.is_up ? "text-slate-800" : "text-red-400 line-through")}>
+                      {iface.name}
+                    </span>
+                    {/* IP/Prefix */}
+                    <span className="font-mono text-slate-500 truncate flex-1">
+                      {iface.ip}/{iface.prefix_len}
+                    </span>
+                    {/* Type badge */}
+                    {typeBadge && (
+                      <span className={cn("text-[7px] font-bold px-1 py-0.5 rounded shrink-0", typeBadge.cls)}>
+                        {typeBadge.label}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {hiddenCount > 0 && (
+              <div className="text-center mt-1">
+                <span className="text-[8px] font-bold text-violet-500 cursor-pointer hover:underline">
+                  +{hiddenCount} more — click to expand
+                </span>
+              </div>
+            )}
+          </div>
+        </>
+      )}
 
       <Handle type="source" position={Position.Bottom} className="!w-2 !h-2 !bg-violet-400 !border-2 !border-white !-bottom-1" />
     </div>
@@ -204,6 +273,7 @@ const FwEdge = memo(({
 
   const isInterVdom = data?.type === 'inter-vdom';
   const isExternal = data?.type === 'external';
+  const isSimple = data?.detailLevel === 'simple';
   const strokeColor = isInterVdom ? '#8b5cf6' : '#f59e0b';
 
   const edgeStyle = useMemo(() => ({
@@ -231,36 +301,59 @@ const FwEdge = memo(({
               ? "bg-white border-violet-200"
               : "bg-white border-amber-200"
           )}>
-            {/* Protocol badge for inter-VDOM */}
-            {isInterVdom && data?.protocol && (
-              <span className={cn(
-                "text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded mb-0.5",
-                getProtocolStyle(data.protocol).bg, getProtocolStyle(data.protocol).text
-              )}>
-                {data.protocol}
-              </span>
-            )}
-            {/* Interface mapping */}
-            {data?.srcIface && data?.dstIface && (
-              <span className="text-[8px] font-bold text-slate-600 font-mono whitespace-nowrap">
-                {data.srcIface} → {data.dstIface}
-              </span>
-            )}
-            {/* Subnet */}
-            <span className="text-[8px] font-bold font-mono text-slate-500 whitespace-nowrap">
-              {data?.subnet}
-            </span>
-            {/* Cost */}
-            {data?.cost !== undefined && data.cost !== null && (
-              <span className="text-[7px] font-bold text-slate-400 whitespace-nowrap">
-                cost: {data.cost}
-              </span>
-            )}
-            {/* External: local interface */}
-            {isExternal && data?.localIface && (
-              <span className="text-[8px] font-bold text-amber-600 font-mono whitespace-nowrap">
-                via {data.localIface}
-              </span>
+            {isSimple ? (
+              /* ── Simple Mode ── */
+              <>
+                <span className={cn(
+                  "text-[9px] font-black",
+                  isInterVdom ? "text-violet-600" : "text-amber-600"
+                )}>
+                  {isInterVdom ? SIMPLE_LABELS.interVdom : SIMPLE_LABELS.external}
+                </span>
+                {isInterVdom && data?.protocol && (
+                  <span className={cn(
+                    "text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded mt-0.5",
+                    getProtocolStyle(data.protocol).bg, getProtocolStyle(data.protocol).text
+                  )}>
+                    {data.protocol}
+                  </span>
+                )}
+              </>
+            ) : (
+              /* ── Expert Mode ── */
+              <>
+                {/* Protocol badge for inter-VDOM */}
+                {isInterVdom && data?.protocol && (
+                  <span className={cn(
+                    "text-[7px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded mb-0.5",
+                    getProtocolStyle(data.protocol).bg, getProtocolStyle(data.protocol).text
+                  )}>
+                    {data.protocol}
+                  </span>
+                )}
+                {/* Interface mapping */}
+                {data?.srcIface && data?.dstIface && (
+                  <span className="text-[8px] font-bold text-slate-600 font-mono whitespace-nowrap">
+                    {data.srcIface} → {data.dstIface}
+                  </span>
+                )}
+                {/* Subnet */}
+                <span className="text-[8px] font-bold font-mono text-slate-500 whitespace-nowrap">
+                  {data?.subnet}
+                </span>
+                {/* Cost */}
+                {data?.cost !== undefined && data.cost !== null && (
+                  <span className="text-[7px] font-bold text-slate-400 whitespace-nowrap">
+                    cost: {data.cost}
+                  </span>
+                )}
+                {/* External: local interface */}
+                {isExternal && data?.localIface && (
+                  <span className="text-[8px] font-bold text-amber-600 font-mono whitespace-nowrap">
+                    via {data.localIface}
+                  </span>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -311,8 +404,10 @@ const getLayoutedElements = (nodes, edges) => {
 // ROUTING TABLE DETAIL PANEL (slides in from right)
 // =============================================================================
 
-const DetailPanel = memo(({ vdom, onClose }) => {
+const DetailPanel = memo(({ vdom, onClose, detailLevel = 'expert' }) => {
   if (!vdom) return null;
+
+  const isSimple = detailLevel === 'simple';
 
   // Group routes by protocol
   const routesByProtocol = useMemo(() => {
@@ -322,7 +417,6 @@ const DetailPanel = memo(({ vdom, onClose }) => {
       if (!groups[proto]) groups[proto] = [];
       groups[proto].push(r);
     });
-    // Sort each group by destination
     Object.values(groups).forEach((arr) => arr.sort((a, b) => a.destination.localeCompare(b.destination)));
     return groups;
   }, [vdom.routes]);
@@ -344,7 +438,10 @@ const DetailPanel = memo(({ vdom, onClose }) => {
         <div className="flex-1 min-w-0">
           <h2 className="text-sm font-black text-slate-900 truncate">{vdom.name}</h2>
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            {vdom.interfaces?.length || 0} interfaces | {vdom.routes_count} routes
+            {isSimple
+              ? `${vdom.interfaces?.length || 0} ${SIMPLE_LABELS.iface} | ${vdom.routes_count} ${SIMPLE_LABELS.rte}`
+              : `${vdom.interfaces?.length || 0} interfaces | ${vdom.routes_count} routes`
+            }
           </p>
         </div>
         <button onClick={onClose} className="p-2 rounded-xl hover:bg-slate-100 transition-colors">
@@ -354,94 +451,139 @@ const DetailPanel = memo(({ vdom, onClose }) => {
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto">
-        {/* Interface Table */}
-        <div className="px-5 py-3 border-b border-slate-100">
-          <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Interfaces</h3>
-          <table className="w-full text-[10px]">
-            <thead>
-              <tr className="text-slate-400 font-bold uppercase tracking-wider">
-                <th className="text-left py-1 pr-2">Status</th>
-                <th className="text-left py-1 pr-2">Name</th>
-                <th className="text-left py-1 pr-2">IP / Prefix</th>
-                <th className="text-left py-1 pr-2">Network</th>
-                <th className="text-left py-1">Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(vdom.interfaces || []).map((iface) => {
-                const typeBadge = IFACE_TYPE_BADGE[iface.interface_type?.toLowerCase()] || null;
-                return (
-                  <tr key={iface.name} className={cn("border-t border-slate-50", !iface.is_up && "opacity-50")}>
-                    <td className="py-1.5 pr-2">
-                      <div className={cn("w-2 h-2 rounded-full", iface.is_up ? "bg-emerald-500" : "bg-red-400")} />
-                    </td>
-                    <td className="py-1.5 pr-2 font-bold text-slate-800">{iface.name}</td>
-                    <td className="py-1.5 pr-2 font-mono text-slate-600">{iface.ip}/{iface.prefix_len}</td>
-                    <td className="py-1.5 pr-2 font-mono text-slate-400">{iface.network_id}</td>
-                    <td className="py-1.5">
-                      {typeBadge ? (
-                        <span className={cn("text-[8px] font-bold px-1.5 py-0.5 rounded", typeBadge.cls)}>
-                          {typeBadge.label}
-                        </span>
-                      ) : (
-                        <span className="text-slate-300">—</span>
-                      )}
-                    </td>
+        {isSimple ? (
+          /* ── Simple Mode ── */
+          <>
+            {/* Connection List */}
+            <div className="px-5 py-3 border-b border-slate-100">
+              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Connections</h3>
+              <div className="space-y-1">
+                {(vdom.interfaces || []).map((iface) => (
+                  <div key={iface.name} className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-slate-50">
+                    <div className={cn("w-2 h-2 rounded-full shrink-0", iface.is_up ? "bg-emerald-500" : "bg-red-400")} />
+                    <span className="text-[10px] font-bold text-slate-800 flex-1">{iface.name}</span>
+                    <span className={cn("text-[9px] font-bold", iface.is_up ? "text-emerald-600" : "text-red-500")}>
+                      {iface.is_up ? 'Active' : 'Down'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Route Summary */}
+            <div className="px-5 py-3">
+              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Rules Summary</h3>
+              {sortedProtos.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {sortedProtos.map((proto) => {
+                    const routes = routesByProtocol[proto];
+                    const ps = getProtocolStyle(proto);
+                    return (
+                      <div key={proto} className={cn("rounded-xl border px-3 py-2.5", ps.bg, ps.border)}>
+                        <div className={cn("text-lg font-black", ps.text)}>{routes.length}</div>
+                        <div className={cn("text-[9px] font-black uppercase tracking-widest", ps.text)}>{proto}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400 text-center py-4">No rules in this zone.</p>
+              )}
+            </div>
+          </>
+        ) : (
+          /* ── Expert Mode ── */
+          <>
+            {/* Interface Table */}
+            <div className="px-5 py-3 border-b border-slate-100">
+              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Interfaces</h3>
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="text-slate-400 font-bold uppercase tracking-wider">
+                    <th className="text-left py-1 pr-2">Status</th>
+                    <th className="text-left py-1 pr-2">Name</th>
+                    <th className="text-left py-1 pr-2">IP / Prefix</th>
+                    <th className="text-left py-1 pr-2">Network</th>
+                    <th className="text-left py-1">Type</th>
                   </tr>
+                </thead>
+                <tbody>
+                  {(vdom.interfaces || []).map((iface) => {
+                    const typeBadge = IFACE_TYPE_BADGE[iface.interface_type?.toLowerCase()] || null;
+                    return (
+                      <tr key={iface.name} className={cn("border-t border-slate-50", !iface.is_up && "opacity-50")}>
+                        <td className="py-1.5 pr-2">
+                          <div className={cn("w-2 h-2 rounded-full", iface.is_up ? "bg-emerald-500" : "bg-red-400")} />
+                        </td>
+                        <td className="py-1.5 pr-2 font-bold text-slate-800">{iface.name}</td>
+                        <td className="py-1.5 pr-2 font-mono text-slate-600">{iface.ip}/{iface.prefix_len}</td>
+                        <td className="py-1.5 pr-2 font-mono text-slate-400">{iface.network_id}</td>
+                        <td className="py-1.5">
+                          {typeBadge ? (
+                            <span className={cn("text-[8px] font-bold px-1.5 py-0.5 rounded", typeBadge.cls)}>
+                              {typeBadge.label}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">---</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Routing Table */}
+            <div className="px-5 py-3">
+              <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Routing Table</h3>
+
+              {sortedProtos.map((proto) => {
+                const routes = routesByProtocol[proto];
+                const ps = getProtocolStyle(proto);
+                return (
+                  <div key={proto} className="mb-4">
+                    <div className={cn("flex items-center gap-2 mb-1.5 px-2 py-1 rounded-lg", ps.bg)}>
+                      <div className={cn("w-2 h-2 rounded-full", ps.dot)} />
+                      <span className={cn("text-[9px] font-black uppercase tracking-widest", ps.text)}>
+                        {proto} ({routes.length})
+                      </span>
+                    </div>
+                    <table className="w-full text-[9px]">
+                      <thead>
+                        <tr className="text-slate-400 font-bold uppercase tracking-wider">
+                          <th className="text-left py-0.5 pr-2">Destination</th>
+                          <th className="text-left py-0.5 pr-2">Gateway</th>
+                          <th className="text-left py-0.5 pr-2">Interface</th>
+                          <th className="text-right py-0.5 pr-2">Metric</th>
+                          <th className="text-right py-0.5">AD</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {routes.map((r, i) => (
+                          <tr key={i} className={cn("border-t border-slate-50", r.is_default && "bg-red-50/50")}>
+                            <td className="py-1 pr-2 font-mono font-bold text-slate-700">
+                              {r.destination}
+                              {r.is_default && <span className="ml-1 text-[7px] font-black text-red-400">DEFAULT</span>}
+                            </td>
+                            <td className="py-1 pr-2 font-mono text-slate-500">{r.gateway}</td>
+                            <td className="py-1 pr-2 font-bold text-slate-600">{r.interface}</td>
+                            <td className="py-1 pr-2 text-right font-mono text-slate-500">{r.metric}</td>
+                            <td className="py-1 text-right font-mono text-slate-400">{r.distance}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
 
-        {/* Routing Table */}
-        <div className="px-5 py-3">
-          <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Routing Table</h3>
-
-          {sortedProtos.map((proto) => {
-            const routes = routesByProtocol[proto];
-            const ps = getProtocolStyle(proto);
-            return (
-              <div key={proto} className="mb-4">
-                <div className={cn("flex items-center gap-2 mb-1.5 px-2 py-1 rounded-lg", ps.bg)}>
-                  <div className={cn("w-2 h-2 rounded-full", ps.dot)} />
-                  <span className={cn("text-[9px] font-black uppercase tracking-widest", ps.text)}>
-                    {proto} ({routes.length})
-                  </span>
-                </div>
-                <table className="w-full text-[9px]">
-                  <thead>
-                    <tr className="text-slate-400 font-bold uppercase tracking-wider">
-                      <th className="text-left py-0.5 pr-2">Destination</th>
-                      <th className="text-left py-0.5 pr-2">Gateway</th>
-                      <th className="text-left py-0.5 pr-2">Interface</th>
-                      <th className="text-right py-0.5 pr-2">Metric</th>
-                      <th className="text-right py-0.5">AD</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {routes.map((r, i) => (
-                      <tr key={i} className={cn("border-t border-slate-50", r.is_default && "bg-red-50/50")}>
-                        <td className="py-1 pr-2 font-mono font-bold text-slate-700">
-                          {r.destination}
-                          {r.is_default && <span className="ml-1 text-[7px] font-black text-red-400">DEFAULT</span>}
-                        </td>
-                        <td className="py-1 pr-2 font-mono text-slate-500">{r.gateway}</td>
-                        <td className="py-1 pr-2 font-bold text-slate-600">{r.interface}</td>
-                        <td className="py-1 pr-2 text-right font-mono text-slate-500">{r.metric}</td>
-                        <td className="py-1 text-right font-mono text-slate-400">{r.distance}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
-
-          {sortedProtos.length === 0 && (
-            <p className="text-xs text-slate-400 text-center py-4">No routes in this VDOM.</p>
-          )}
-        </div>
+              {sortedProtos.length === 0 && (
+                <p className="text-xs text-slate-400 text-center py-4">No routes in this VDOM.</p>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -458,6 +600,7 @@ export const SingleFirewallView = ({ firewallData, onBack, excludeDefault, onTog
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedVdom, setSelectedVdom] = useState(null);
+  const [detailLevel, setDetailLevel] = useState('simple');
 
   // Build React Flow graph - NO subnet nodes, interfaces embedded in VDOM cards
   useEffect(() => {
@@ -468,7 +611,7 @@ export const SingleFirewallView = ({ firewallData, onBack, excludeDefault, onTog
 
     // 1. VDOM nodes (rich cards with interfaces inside)
     firewallData.vdoms.forEach((vdom) => {
-      const h = calcVdomHeight(vdom.interfaces.length);
+      const h = calcVdomHeight(vdom.interfaces.length, detailLevel);
       newNodes.push({
         id: `vdom-${vdom.name}`,
         type: 'vdomCard',
@@ -477,6 +620,7 @@ export const SingleFirewallView = ({ firewallData, onBack, excludeDefault, onTog
           interfaces: vdom.interfaces,
           routesCount: vdom.routes_count,
           routeProtocols: vdom.route_protocols || {},
+          detailLevel,
           _w: VDOM_NODE_WIDTH,
           _h: h,
           _vdom: vdom, // full data for detail panel
@@ -498,6 +642,7 @@ export const SingleFirewallView = ({ firewallData, onBack, excludeDefault, onTog
           dstIface: link.target_interface,
           subnet: link.subnet,
           cost: link.cost,
+          detailLevel,
         },
         markerEnd: { type: MarkerType.ArrowClosed, color: '#8b5cf6', width: 14, height: 14 },
       });
@@ -530,6 +675,7 @@ export const SingleFirewallView = ({ firewallData, onBack, excludeDefault, onTog
           type: 'external',
           subnet: peer.subnet,
           localIface: peer.interface,
+          detailLevel,
         },
         markerEnd: { type: MarkerType.ArrowClosed, color: '#f59e0b', width: 14, height: 14 },
       });
@@ -538,7 +684,7 @@ export const SingleFirewallView = ({ firewallData, onBack, excludeDefault, onTog
     const { nodes: layouted, edges: layoutedEdges } = getLayoutedElements(newNodes, newEdges);
     setNodes(layouted);
     setEdges(layoutedEdges);
-  }, [firewallData, setNodes, setEdges]);
+  }, [firewallData, detailLevel, setNodes, setEdges]);
 
   // Handle node click → open detail panel for VDOMs
   const onNodeClick = useCallback((_event, node) => {
@@ -583,16 +729,64 @@ export const SingleFirewallView = ({ firewallData, onBack, excludeDefault, onTog
               <button onClick={onBack} className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors">
                 <ArrowLeft className="w-4 h-4 text-slate-600" />
               </button>
-              <div>
+              <div className="flex-1">
                 <h3 className="text-sm font-black text-slate-900 tracking-tight">{firewallData.device_id}</h3>
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Single Firewall View</p>
+              </div>
+              {/* Simple / Expert Toggle */}
+              <div className="flex items-center bg-slate-100 rounded-xl p-0.5">
+                <button
+                  onClick={() => setDetailLevel('simple')}
+                  className={cn(
+                    "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors",
+                    detailLevel === 'simple'
+                      ? "bg-white text-violet-700 shadow-sm"
+                      : "text-slate-400 hover:text-slate-600"
+                  )}
+                >
+                  <Users className="w-3 h-3" /> Simple
+                </button>
+                <button
+                  onClick={() => setDetailLevel('expert')}
+                  className={cn(
+                    "flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors",
+                    detailLevel === 'expert'
+                      ? "bg-white text-violet-700 shadow-sm"
+                      : "text-slate-400 hover:text-slate-600"
+                  )}
+                >
+                  <Wrench className="w-3 h-3" /> Expert
+                </button>
               </div>
             </div>
 
             <div className="flex gap-2 text-[9px] font-bold uppercase tracking-widest">
-              <span className="px-2 py-1 bg-violet-100 text-violet-700 rounded-lg">{firewallData.vdoms.length} VDOMs</span>
-              <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg">{firewallData.subnets.length} Subnets</span>
-              <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg">{firewallData.external_peers.length} Peers</span>
+              {detailLevel === 'simple' ? (
+                <>
+                  {(() => {
+                    const overall = computeOverallHealth(firewallData.vdoms);
+                    return (
+                      <span className={cn(
+                        "px-2 py-1 rounded-lg flex items-center gap-1",
+                        overall.status === 'healthy' ? "bg-emerald-100 text-emerald-700" :
+                        overall.status === 'warning' ? "bg-amber-100 text-amber-700" :
+                        "bg-red-100 text-red-700"
+                      )}>
+                        <div className={cn("w-1.5 h-1.5 rounded-full", overall.color)} />
+                        {overall.text}
+                      </span>
+                    );
+                  })()}
+                  <span className="px-2 py-1 bg-violet-100 text-violet-700 rounded-lg">{firewallData.vdoms.length} Zones</span>
+                  <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg">{firewallData.external_peers.length} External Links</span>
+                </>
+              ) : (
+                <>
+                  <span className="px-2 py-1 bg-violet-100 text-violet-700 rounded-lg">{firewallData.vdoms.length} VDOMs</span>
+                  <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg">{firewallData.subnets.length} Subnets</span>
+                  <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg">{firewallData.external_peers.length} Peers</span>
+                </>
+              )}
             </div>
 
             <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
@@ -604,7 +798,7 @@ export const SingleFirewallView = ({ firewallData, onBack, excludeDefault, onTog
                 Exclude Default Route
               </button>
               <span className="text-[9px] text-slate-400 flex items-center gap-1">
-                <ChevronRight className="w-3 h-3" /> Click VDOM for details
+                <ChevronRight className="w-3 h-3" /> {detailLevel === 'simple' ? 'Click a zone for details' : 'Click VDOM for details'}
               </span>
             </div>
           </div>
@@ -615,11 +809,11 @@ export const SingleFirewallView = ({ firewallData, onBack, excludeDefault, onTog
           <div className="bg-white/90 backdrop-blur-sm p-3 rounded-xl border border-slate-200 shadow-lg">
             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Legend</p>
             <div className="space-y-1.5">
-              <LegendRow icon={<div className="w-3 h-3 rounded bg-violet-500" />} label="VDOM" />
+              <LegendRow icon={<div className="w-3 h-3 rounded bg-violet-500" />} label={detailLevel === 'simple' ? 'Network Zone' : 'VDOM'} />
               <LegendRow icon={<div className="w-3 h-3 rounded border-2 border-dashed border-amber-400 bg-amber-100" />} label="External Peer" />
             </div>
             <div className="mt-1.5 pt-1.5 border-t border-slate-100 space-y-1">
-              <EdgeLegendRow color="#8b5cf6" label="Inter-VDOM" />
+              <EdgeLegendRow color="#8b5cf6" label={detailLevel === 'simple' ? 'Internal Link' : 'Inter-VDOM'} />
               <EdgeLegendRow color="#f59e0b" label="External" dashed />
             </div>
           </div>
@@ -628,7 +822,7 @@ export const SingleFirewallView = ({ firewallData, onBack, excludeDefault, onTog
 
       {/* Detail Panel Overlay */}
       {selectedVdom && (
-        <DetailPanel vdom={selectedVdom} onClose={() => setSelectedVdom(null)} />
+        <DetailPanel vdom={selectedVdom} onClose={() => setSelectedVdom(null)} detailLevel={detailLevel} />
       )}
     </div>
   );
