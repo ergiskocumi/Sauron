@@ -54,7 +54,6 @@ class InventoryLoader:
         Raises:
             InventoryError: Se il file non esiste, ha errori di sintassi,
                            o contiene dati non validi
-            SystemExit: In modalità CLI, esce con codice errore
         """
         logger.info(f"Loading inventory from: {self.file_path}")
 
@@ -128,20 +127,14 @@ class InventoryLoader:
 
     def _handle_error(self, message: str, hint: str = None) -> None:
         """
-        Gestisce un errore critico.
-
-        In modalità CLI stampa messaggio e termina.
-        In futuro potrebbe sollevare eccezione per uso programmatico.
+        Gestisce un errore critico lanciando InventoryError.
         """
-        import sys
+        full_message = message
+        if hint:
+            full_message += f" (Suggerimento: {hint})"
 
         logger.error(message)
-
-        print(f"\nERRORE INVENTARIO: {message}")
-        if hint:
-            print(f"Suggerimento: {hint}")
-
-        sys.exit(1)
+        raise InventoryError(full_message)
 
     def add_firewall(self, new_fw: dict) -> dict:
         """
@@ -229,5 +222,5 @@ class InventoryLoader:
         try:
             configs = self.load()
             return len(configs) > 0
-        except (InventoryError, SystemExit):
+        except InventoryError:
             return False

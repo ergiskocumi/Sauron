@@ -27,6 +27,7 @@ import { cn } from '../../lib/utils';
 import { usePath } from '../../hooks/usePath';
 import { formatNodesForDropdown } from '../../services/pathService';
 import { PathSimulationPanel } from './PathSimulationPanel';
+import apiClient from '../../api/client';
 
 // Configuration Constants (Moved outside to prevent re-renders)
 const FIT_VIEW_OPTIONS = { padding: 0.2 };
@@ -391,19 +392,8 @@ export const NetworkMap = () => {
     try {
       if (!isInitial) setIsLoading(true);
 
-      const response = await fetch('http://localhost:8000/api/topology');
-
-      // Check if response is JSON before parsing
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('No snapshot available. Run a network scan first.');
-      }
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch topology');
-      }
-
-      const data = await response.json();
+      const response = await apiClient.get('/api/topology');
+      const data = response.data;
 
       // Transform backend data to items React Flow understands
       // Backend returns nodes as strings like "fw-milano:root"
@@ -497,8 +487,8 @@ export const NetworkMap = () => {
   useEffect(() => {
     const checkUpdate = async () => {
       try {
-        const res = await fetch('/api/snapshot/status');
-        const status = await res.json();
+        const res = await apiClient.get('/api/snapshot/status');
+        const status = res.data;
 
         if (status.exists) {
           // If the snapshot is very new (less than 10 seconds), maybe we should refresh

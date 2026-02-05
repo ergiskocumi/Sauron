@@ -14,6 +14,7 @@
  */
 
 import apiClient from '../api/client';
+import { extractErrorMessage } from '../utils/errors';
 
 /**
  * Recupera la lista completa dei firewall dall'inventario
@@ -37,7 +38,7 @@ export const getInventory = async () => {
     return response.data;
   } catch (error) {
     console.error('[InventoryService] Failed to fetch inventory:', error);
-    throw new Error(error.userMessage || 'Errore nel caricamento dell\'inventario');
+    throw new Error(extractErrorMessage(error, 'Errore nel caricamento dell\'inventario'));
   }
 };
 
@@ -53,8 +54,7 @@ export const addFirewall = async (firewall) => {
     const response = await apiClient.post('/api/inventory', firewall);
     return response.data;
   } catch (error) {
-    const detail = error.response?.data?.detail;
-    throw new Error(detail || error.userMessage || 'Errore nell\'aggiunta del firewall');
+    throw new Error(extractErrorMessage(error, 'Errore nell\'aggiunta del firewall'));
   }
 };
 

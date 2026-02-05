@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { addFirewall } from '../../services/inventoryService';
 import { X, Plus, HelpCircle, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -20,6 +20,22 @@ export const AddFirewallForm = ({ onClose, onSuccess }) => {
   const [submitting, setSubmitting] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const firstInputRef = useRef(null);
+  const modalTitleId = 'add-firewall-title';
+
+  // Auto-focus first input on mount
+  useEffect(() => {
+    firstInputRef.current?.focus();
+  }, []);
+
+  // Escape key closes modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const validateField = (name, value) => {
     if (!value.trim()) return 'Campo obbligatorio';
@@ -30,6 +46,8 @@ export const AddFirewallForm = ({ onClose, onSuccess }) => {
       const port = value.substring(lastColon + 1);
       if (!/^\d+$/.test(port)) return "La porta deve essere un numero";
       if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) return "Formato IP non valido";
+      const octets = ip.split('.').map(Number);
+      if (octets.some(o => o < 0 || o > 255)) return "Ogni ottetto IP deve essere tra 0 e 255";
     }
     return null;
   };
@@ -81,11 +99,16 @@ export const AddFirewallForm = ({ onClose, onSuccess }) => {
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={modalTitleId}
+        className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Aggiungi Firewall</h2>
+            <h2 id={modalTitleId} className="text-xl font-bold text-slate-900">Aggiungi Firewall</h2>
             <p className="text-sm text-slate-400 mt-0.5">Inserisci i dati del nuovo dispositivo</p>
           </div>
           <button
@@ -104,6 +127,7 @@ export const AddFirewallForm = ({ onClose, onSuccess }) => {
               Nome Firewall
             </label>
             <input
+              ref={firstInputRef}
               type="text"
               name="id"
               value={formData.id}

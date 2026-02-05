@@ -22,18 +22,21 @@ Test interattivo:
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
+import re
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # Domain & Core
 from domain.models import FirewallConfig
 from core.inventory import InventoryLoader, InventoryError
+from core.config import get_settings
 
 # Infrastructure
 from infrastructure.snapshot_repository import (
@@ -41,9 +44,8 @@ from infrastructure.snapshot_repository import (
     SnapshotNotFoundError,
     SnapshotCorruptedError,
 )
-from infrastructure.fortigate_client import FortiGateClient
-
 # Application Services
+from application.services.scan_service import ScanService
 from application.services.topology_service import TopologyService
 from application.services.pathfinder_service import PathfinderService
 from application.services.dijkstra_service import (
@@ -86,17 +88,14 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CORS Configuration (per frontend React/Vue/Angular)
+# CORS Configuration
+_settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # React default
-        "http://localhost:5173",  # Vite default
-        "http://localhost:8080",  # Vue CLI default
-    ],
+    allow_origins=_settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
 )
 
 
@@ -186,6 +185,36 @@ class PathRequest(BaseModel):
         description="IP destinazione (dotted-decimal)",
         examples=["10.0.0.1", "192.168.1.100"],
     )
+
+    @field_validator("source")
+    @classmethod
+    def validate_source(cls, v: str) -> str:
+        """Valida formato source: device-id o device-id:vdom."""
+        if not re.match(r'^[\w\-]+(:\w+)?$', v):
+            raise ValueError(
+                "Source deve essere 'device-id' o 'device-id:vdom' "
+                "(solo lettere, numeri, trattini e underscore)"
+            )
+        return v
+
+    @field_validator("destination")
+    @classmethod
+    def validate_destination(cls, v: str) -> str:
+        """Valida che destination sia un indirizzo IP valido o un node_key."""
+        # Accetta sia IP puri che node_key (device:vdom)
+        try:
+            ipaddress.ip_address(v)
+            return v
+        except ValueError:
+            pass
+        # Accetta anche node_key per path tra nodi
+        if re.match(r'^[\w\-]+(:\w+)?$', v):
+            return v
+        raise ValueError(
+            "Destination deve essere un IP valido (es. '10.0.0.1') "
+            "o un node_key (es. 'fw-roma:root')"
+        )
+
     max_ttl: int = Field(
         64,
         description="Massimo numero di hop (default 64)",
@@ -229,6 +258,9 @@ DEFAULT_SNAPSHOT_PATH = Path("network.snapshot.gz")
 # Repository singleton
 snapshot_repository = SnapshotRepository(compress=True)
 
+# Scan lock to prevent concurrent scans
+_scan_lock = asyncio.Lock()
+
 
 # =============================================================================
 # API ENDPOINTS
@@ -268,12 +300,6 @@ async def get_inventory():
     except InventoryError as e:
         logger.error(f"Inventory error: {e}")
         raise HTTPException(status_code=404, detail=str(e))
-    except SystemExit:
-        # InventoryLoader chiama sys.exit() in caso di errore
-        raise HTTPException(
-            status_code=500,
-            detail="Inventory file not found or invalid",
-        )
     except Exception as e:
         logger.error(f"Unexpected error loading inventory: {e}")
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")
@@ -372,7 +398,12 @@ async def scan_network(background_tasks: BackgroundTasks):
     Returns:
         Messaggio di conferma (scan started)
     """
-    # Aggiungi task in background
+    if _scan_lock.locked():
+        raise HTTPException(
+            status_code=409,
+            detail="Scan already in progress",
+        )
+
     background_tasks.add_task(_perform_scan)
 
     return ScanResponse(
@@ -382,102 +413,17 @@ async def scan_network(background_tasks: BackgroundTasks):
 
 
 async def _perform_scan():
-    """
-    Funzione background per eseguire la scansione completa.
-
-    Steps:
-    1. Carica inventory
-    2. Connette ai firewall
-    3. Esegue TopologyService.build_from_firewalls()
-    4. Crea NetworkSnapshot
-    5. Salva su disco
-    """
-    logger.info("Background scan started")
-
-    try:
-        # Step 1: Carica inventory
-        loader = InventoryLoader("inventory.json")
-        configs = loader.load()
-
-        # Filtra solo firewall abilitati
-        enabled_configs = [cfg for cfg in configs if cfg.enabled]
-        logger.info(f"Scanning {len(enabled_configs)} enabled firewalls")
-
-        # Step 2: Crea client FortiGate
-        clients = []
-        for config in enabled_configs:
-            client = FortiGateClient(
-                ip_address=config.host,
-                api_token=config.token,
-            )
-            await client.connect()
-            clients.append((config.id, client))
-
+    """Funzione background che delega la scansione a ScanService."""
+    async with _scan_lock:
         try:
-            # Step 3: Build topology
-            topology_service = TopologyService()
-            topology, routing_tables = await topology_service.build_from_firewalls(clients)
-
-            # Step 4: Crea snapshot
-            # Raccogliamo anche le interfacce per lo snapshot
-            all_interfaces = []
-            for link in topology.links:
-                all_interfaces.extend(link.interfaces)
-
-            # Metadati firewall
-            firewalls_metadata = []
-            from application.models.snapshot import FirewallMetadata
-
-            for config in enabled_configs:
-                node_keys = [
-                    node_key for node_key in topology.nodes
-                    if node_key.startswith(f"{config.id}:")
-                ]
-                vdoms = [key.split(":", 1)[1] for key in node_keys]
-
-                routes_count = sum(
-                    len(routing_tables.get(node_key, []))
-                    for node_key in node_keys
-                )
-
-                interfaces_count = sum(
-                    1 for iface in all_interfaces
-                    if iface.device_id == config.id
-                )
-
-                firewalls_metadata.append(
-                    FirewallMetadata(
-                        device_id=config.id,
-                        host=config.host,
-                        vdoms=vdoms,
-                        routes_count=routes_count,
-                        interfaces_count=interfaces_count,
-                        scan_success=True,
-                    )
-                )
-
-            snapshot = NetworkSnapshot(
-                topology=topology,
-                routing_tables=routing_tables,
-                interfaces=all_interfaces,
-                firewalls_metadata=firewalls_metadata,
+            scan_service = ScanService(
+                inventory_path="inventory.json",
+                snapshot_path=DEFAULT_SNAPSHOT_PATH,
+                snapshot_repository=snapshot_repository,
             )
-
-            # Step 5: Salva snapshot
-            snapshot_repository.save(snapshot, DEFAULT_SNAPSHOT_PATH, overwrite=True)
-
-            logger.info(
-                f"Scan completed successfully: "
-                f"{snapshot.total_nodes} nodes, {snapshot.total_links} links"
-            )
-
-        finally:
-            # Disconnetti tutti i client
-            for _, client in clients:
-                await client.disconnect()
-
-    except Exception as e:
-        logger.error(f"Scan failed: {e}", exc_info=True)
+            await scan_service.execute()
+        except Exception as e:
+            logger.error(f"Scan failed: {e}", exc_info=True)
 
 
 @app.get("/api/topology", response_model=TopologyResponse)
@@ -505,77 +451,36 @@ async def get_topology():
         # Serializza link con next-hop relationships e metriche avanzate
         links_serialized = []
         for link in topology.links:
-            # Check if this is new format (with source/target) or legacy (with endpoints only)
-            if link.source and link.target:
-                # New directed format
-                links_serialized.append({
-                    "source": link.source,
-                    "target": link.target,
-                    "subnet": link.subnet,
-                    "source_interface": link.source_interface,
-                    "target_ip": link.target_ip,
-                    "cost": link.cost,
-                    "protocol": link.protocol,
-                    "distance": link.distance,
-                    "bandwidth_mbps": link.bandwidth_mbps,
-                    "latency_ms": link.latency_ms,
-                    "reliability": link.reliability,
-                    "is_point_to_point": link.is_point_to_point,
-                    "endpoints": list(link.endpoints),
-                    "endpoint_count": link.endpoint_count,
-                    "interfaces": [
-                        {
-                            "device_id": iface.device_id,
-                            "vdom": iface.vdom,
-                            "iface_name": iface.iface_name,
-                            "ip": iface.ip_str,
-                            "prefix_len": iface.prefix_len,
-                            "network_id": iface.network_id,
-                            "is_up": iface.is_up,
-                            "bandwidth_mbps": iface.bandwidth_mbps,
-                            "interface_type": iface.interface_type,
-                        }
-                        for iface in link.interfaces
-                    ],
-                })
-            else:
-                # Legacy format: derive directed edges from endpoints
-                endpoints = list(link.get_endpoints()) if hasattr(link, 'get_endpoints') else list(link.endpoints) if link.endpoints else []
-                if len(endpoints) >= 2:
-                    # Create pairwise bidirectional edges
-                    for i in range(len(endpoints)):
-                        for j in range(len(endpoints)):
-                            if i != j:
-                                links_serialized.append({
-                                    "source": endpoints[i],
-                                    "target": endpoints[j],
-                                    "subnet": link.subnet,
-                                    "source_interface": link.interfaces[0].iface_name if link.interfaces else "",
-                                    "target_ip": "",
-                                    "cost": link.cost if hasattr(link, 'cost') else 1,
-                                    "protocol": link.protocol if hasattr(link, 'protocol') else "connected",
-                                    "distance": link.distance if hasattr(link, 'distance') else 0,
-                                    "bandwidth_mbps": link.bandwidth_mbps if hasattr(link, 'bandwidth_mbps') else None,
-                                    "latency_ms": link.latency_ms if hasattr(link, 'latency_ms') else None,
-                                    "reliability": link.reliability if hasattr(link, 'reliability') else None,
-                                    "is_point_to_point": link.is_point_to_point if hasattr(link, 'is_point_to_point') else False,
-                                    "endpoints": endpoints,
-                                    "endpoint_count": len(endpoints),
-                                    "interfaces": [
-                                        {
-                                            "device_id": iface.device_id,
-                                            "vdom": iface.vdom,
-                                            "iface_name": iface.iface_name,
-                                            "ip": iface.ip_str,
-                                            "prefix_len": iface.prefix_len,
-                                            "network_id": iface.network_id,
-                                            "is_up": iface.is_up,
-                                            "bandwidth_mbps": iface.bandwidth_mbps,
-                                            "interface_type": iface.interface_type,
-                                        }
-                                        for iface in link.interfaces
-                                    ],
-                                })
+            links_serialized.append({
+                "source": link.source,
+                "target": link.target,
+                "subnet": link.subnet,
+                "source_interface": link.source_interface,
+                "target_ip": link.target_ip,
+                "cost": link.cost,
+                "protocol": link.protocol,
+                "distance": link.distance,
+                "bandwidth_mbps": link.bandwidth_mbps,
+                "latency_ms": link.latency_ms,
+                "reliability": link.reliability,
+                "is_point_to_point": link.is_point_to_point,
+                "endpoints": list(link.endpoints),
+                "endpoint_count": link.endpoint_count,
+                "interfaces": [
+                    {
+                        "device_id": iface.device_id,
+                        "vdom": iface.vdom,
+                        "iface_name": iface.iface_name,
+                        "ip": iface.ip_str,
+                        "prefix_len": iface.prefix_len,
+                        "network_id": iface.network_id,
+                        "is_up": iface.is_up,
+                        "bandwidth_mbps": iface.bandwidth_mbps,
+                        "interface_type": iface.interface_type,
+                    }
+                    for iface in link.interfaces
+                ],
+            })
 
         return TopologyResponse(
             nodes=list(topology.nodes),

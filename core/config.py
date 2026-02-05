@@ -101,6 +101,12 @@ class Settings(BaseSettings):
         description="Numero massimo di firewall scansionati in parallelo"
     )
 
+    # --- CORS Settings ---
+    cors_origins: list[str] = Field(
+        default=["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"],
+        description="Lista di origini consentite per CORS"
+    )
+
     # --- Logging Settings ---
     log_level: str = Field(
         default="INFO",

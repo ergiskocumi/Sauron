@@ -14,6 +14,7 @@
  */
 
 import apiClient from '../api/client';
+import { extractErrorMessage } from '../utils/errors';
 
 /**
  * Calcola il percorso tra un nodo sorgente e un IP destinazione
@@ -48,7 +49,7 @@ import apiClient from '../api/client';
  */
 export const calculatePath = async (source, destination, maxTtl = 64, algorithm = 'dijkstra') => {
   try {
-    const response = await apiClient.post('http://localhost:8000/api/path', {
+    const response = await apiClient.post('/api/path', {
       source,
       destination,
       max_ttl: maxTtl,
@@ -58,11 +59,7 @@ export const calculatePath = async (source, destination, maxTtl = 64, algorithm 
   } catch (error) {
     console.error('[PathService] Failed to calculate path:', error);
 
-    // Estrai messaggio errore specifico dal backend
-    const errorMessage =
-      error.response?.data?.detail || error.userMessage || 'Errore nel calcolo del percorso';
-
-    throw new Error(errorMessage);
+    throw new Error(extractErrorMessage(error, 'Errore nel calcolo del percorso'));
   }
 };
 

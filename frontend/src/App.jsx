@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from './lib/utils';
@@ -8,21 +8,32 @@ import { NetworkMap } from './features/topology/NetworkMap';
 import { useHeartbeat } from './hooks/useHeartbeat';
 import { useInventory } from './hooks/useInventory';
 import { Activity, RefreshCw, Server, Info, Zap } from 'lucide-react';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { startScan as scanNetwork } from './services/scanService';
+import { TABS } from './constants';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('inventory');
+  const [activeTab, setActiveTab] = useState(TABS.INVENTORY);
   const { inventory } = useInventory();
   const heartbeatStatuses = useHeartbeat(inventory);
   const [isScanning, setIsScanning] = useState(false);
+
+  const onlineCount = useMemo(
+    () => inventory.filter(f => heartbeatStatuses[f.id] === 'online').length,
+    [inventory, heartbeatStatuses]
+  );
+  const offlineCount = useMemo(
+    () => inventory.filter(f => heartbeatStatuses[f.id] === 'offline').length,
+    [inventory, heartbeatStatuses]
+  );
 
   const startScan = async () => {
     setIsScanning(true);
     const toastId = toast.loading('Inizializzazione scansione di rete...');
 
     try {
-      const response = await fetch('http://localhost:8000/api/scan', { method: 'POST' });
-      if (!response.ok) throw new Error('Scan failed to start');
-      
+      await scanNetwork();
+
       toast.success('Scansione avviata in background. La mappa si aggiornerà al termine.', {
         id: toastId,
         icon: '🚀'
@@ -78,7 +89,7 @@ function App() {
                     </div>
                   </div>
                   <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-                    {activeTab === 'inventory' ? 'Inventory Manager' : activeTab === 'map' ? 'Network Topology' : 'System Simulation'}
+                    {activeTab === TABS.INVENTORY ? 'Inventory Manager' : activeTab === TABS.MAP ? 'Network Topology' : 'System Simulation'}
                   </h1>
                 </div>
                 
@@ -99,44 +110,48 @@ function App() {
 
               {/* Main Content View Switcher */}
               <div className="flex-1 min-h-0">
-                {activeTab === 'inventory' ? (
-                  <div className="flex flex-col gap-8">
-                    {/* Status Pills */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                      <StatusCard 
-                        label="Online Devices" 
-                        value={inventory.filter(f => heartbeatStatuses[f.id] === 'online').length} 
-                        total={inventory.length}
-                        color="green"
-                        icon={<Server size={18} />}
-                      />
-                      <StatusCard 
-                        label="Critical Alerts" 
-                        value={inventory.filter(f => heartbeatStatuses[f.id] === 'offline').length} 
-                        total={inventory.length}
-                        color="red"
-                        icon={<Activity size={18} />}
-                      />
-                      <StatusCard 
-                        label="Sync Success" 
-                        value="98%" 
-                        color="blue"
-                        icon={<RefreshCw size={18} />}
-                      />
-                      <StatusCard 
-                        label="System Info" 
-                        value="v0.1.0" 
-                        color="slate"
-                        icon={<Info size={18} />}
-                      />
+                {activeTab === TABS.INVENTORY ? (
+                  <ErrorBoundary>
+                    <div className="flex flex-col gap-8">
+                      {/* Status Pills */}
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <StatusCard
+                          label="Online Devices"
+                          value={onlineCount}
+                          total={inventory.length}
+                          color="green"
+                          icon={<Server size={18} />}
+                        />
+                        <StatusCard
+                          label="Critical Alerts"
+                          value={offlineCount}
+                          total={inventory.length}
+                          color="red"
+                          icon={<Activity size={18} />}
+                        />
+                        <StatusCard
+                          label="Sync Success"
+                          value="98%"
+                          color="blue"
+                          icon={<RefreshCw size={18} />}
+                        />
+                        <StatusCard
+                          label="System Info"
+                          value="v0.1.0"
+                          color="slate"
+                          icon={<Info size={18} />}
+                        />
+                      </div>
+
+                      <InventoryTable />
                     </div>
-                    
-                    <InventoryTable />
-                  </div>
-                ) : activeTab === 'map' ? (
-                  <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-2xl shadow-slate-200/60 h-[calc(100vh-280px)] w-full mb-12">
-                    <NetworkMap />
-                  </div>
+                  </ErrorBoundary>
+                ) : activeTab === TABS.MAP ? (
+                  <ErrorBoundary>
+                    <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-2xl shadow-slate-200/60 h-[calc(100vh-280px)] w-full mb-12">
+                      <NetworkMap />
+                    </div>
+                  </ErrorBoundary>
                 ) : (
                   <div className="h-[600px] bg-white rounded-3xl border border-slate-200 border-dashed flex flex-col items-center justify-center text-slate-400 p-12 shadow-inner">
                     <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
@@ -155,7 +170,7 @@ function App() {
   );
 }
 
-const StatusCard = ({ label, value, total, color, icon }) => {
+const StatusCard = React.memo(({ label, value, total, color, icon }) => {
   const colors = {
     green: 'bg-green-500/10 text-green-600 border-green-200',
     red: 'bg-red-500/10 text-red-600 border-red-200',
@@ -179,6 +194,6 @@ const StatusCard = ({ label, value, total, color, icon }) => {
       </div>
     </motion.div>
   );
-}
+});
 
 export default App;

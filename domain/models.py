@@ -7,12 +7,14 @@ Validazione automatica, serializzazione e type safety.
 Nota: Usare field_validator e model_validator (Pydantic V2 syntax).
 """
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from typing import Optional, Any
 from datetime import datetime
 
+from domain.base import SauronBaseModel
 
-class Route(BaseModel):
+
+class Route(SauronBaseModel):
     """
     Rappresenta una voce nella Routing Information Base (RIB) del firewall.
     Mappato dall'endpoint /monitor/router/ipv4
@@ -73,13 +75,8 @@ class Route(BaseModel):
             return datetime.fromtimestamp(self.install_date)
         return None
 
-    model_config = {
-        "populate_by_name": True,
-        "str_strip_whitespace": True,
-    }
 
-
-class NetworkInterface(BaseModel):
+class NetworkInterface(SauronBaseModel):
     """
     Rappresenta la configurazione e lo stato di un'interfaccia di rete.
     Mappato dall'endpoint /cmdb/system/interface
@@ -216,13 +213,8 @@ class NetworkInterface(BaseModel):
         except (ValueError, AttributeError):
             return None
 
-    model_config = {
-        "populate_by_name": True,
-        "str_strip_whitespace": True,
-    }
 
-
-class Vdom(BaseModel):
+class Vdom(SauronBaseModel):
     """
     Rappresenta un Virtual Domain (VDOM) nel FortiGate.
     Mappato dall'endpoint /cmdb/system/vdom
@@ -243,13 +235,8 @@ class Vdom(BaseModel):
         """Verifica se è il VDOM root."""
         return self.name.lower() == "root"
 
-    model_config = {
-        "populate_by_name": True,
-        "str_strip_whitespace": True,
-    }
 
-
-class FirewallConfig(BaseModel):
+class FirewallConfig(SauronBaseModel):
     """
     Configurazione di connessione a un singolo Firewall.
     Caricato dal file inventory.json.
@@ -287,13 +274,8 @@ class FirewallConfig(BaseModel):
             raise ValueError(f"Porta non valida: {port}")
         return v
 
-    model_config = {
-        "populate_by_name": True,
-        "str_strip_whitespace": True,
-    }
 
-
-class ScanResult(BaseModel):
+class ScanResult(SauronBaseModel):
     """
     Risultato della scansione di un singolo firewall.
     Utile per aggregare e serializzare i risultati.
@@ -307,7 +289,3 @@ class ScanResult(BaseModel):
     routes_count: int = 0
     interfaces_count: int = 0
     scan_duration_ms: Optional[float] = None
-
-    model_config = {
-        "str_strip_whitespace": True,
-    }
