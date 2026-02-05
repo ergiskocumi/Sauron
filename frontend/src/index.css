@@ -1,0 +1,129 @@
+@import "tailwindcss";
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-color: #f8fafc;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* React Flow Customizations */
+.react-flow__edge-path {
+  stroke-width: 2;
+}
+
+@keyframes bounce-short {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.animate-bounce-short {
+  animation: bounce-short 1s ease-in-out infinite;
+}
+
+.react-flow__controls button {
+  background-color: white !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+/* Animated edge for path highlighting */
+@keyframes edge-flow {
+  from {
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.react-flow__edge.animated .react-flow__edge-path,
+.animated-edge {
+  stroke-dasharray: 8 8;
+  animation: edge-flow 0.5s linear infinite;
+}
+
+/* Path highlighted edge glow effect */
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 4;
+}
+
+/* Edge hover effect */
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke-width: 4;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+/* Edge label improvements */
+.react-flow__edge-textwrapper {
+  pointer-events: all;
+}
+
+.react-flow__edge-text {
+  font-size: 9px !important;
+  font-weight: 700 !important;
+}
+
+/* Custom arrow markers */
+.react-flow__arrowhead {
+  fill-opacity: 1 !important;
+}
+
+/* Node selection ring */
+.react-flow__node.selected {
+  z-index: 10 !important;
+}
+
+/* Improved connection line */
+.react-flow__connection-line {
+  stroke: #3b82f6;
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+}
+
+/* Minimap customizations */
+.react-flow__minimap {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+}

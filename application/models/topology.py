@@ -88,6 +88,14 @@ class InterfaceRecord(BaseModel):
         ...,
         description="Stato operativo dell'interfaccia"
     )
+    bandwidth_mbps: Optional[int] = Field(
+        None,
+        description="Bandwidth in Mbps (es. 1000, 10000, 100000)"
+    )
+    interface_type: Optional[str] = Field(
+        None,
+        description="Tipo interfaccia (physical, vlan, tunnel, hard-switch)"
+    )
 
     @property
     def network_id(self) -> str:
@@ -115,6 +123,60 @@ class InterfaceRecord(BaseModel):
     def node(self) -> Node:
         """Restituisce il Node associato a questa interfaccia."""
         return Node(device_id=self.device_id, vdom=self.vdom)
+
+    @property
+    def estimated_latency_ms(self) -> float:
+        """
+        Stima la latenza dell'interfaccia in millisecondi.
+
+        Basato su tipo interfaccia:
+        - physical: 0.1ms (switching L2)
+        - vlan: 0.1ms (tagging overhead minimo)
+        - tunnel (IPsec, GRE): 1.0ms (encryption overhead)
+        - hard-switch: 0.05ms (hardware switching)
+        """
+        if not self.interface_type:
+            return 0.1  # Default
+
+        type_lower = self.interface_type.lower()
+        if "tunnel" in type_lower or "ipsec" in type_lower:
+            return 1.0
+        elif "hard-switch" in type_lower:
+            return 0.05
+        elif "vlan" in type_lower:
+            return 0.1
+        elif "physical" in type_lower:
+            return 0.1
+        else:
+            return 0.1
+
+    @property
+    def reliability_score(self) -> float:
+        """
+        Calcola un punteggio di affidabilità (0.0 - 1.0).
+
+        Basato su:
+        - Stato operativo (is_up)
+        - Tipo interfaccia (physical > vlan > tunnel)
+        """
+        if not self.is_up:
+            return 0.0
+
+        # Base reliability by type
+        if not self.interface_type:
+            return 0.95
+
+        type_lower = self.interface_type.lower()
+        if "physical" in type_lower:
+            return 0.99
+        elif "vlan" in type_lower:
+            return 0.98
+        elif "hard-switch" in type_lower:
+            return 0.99
+        elif "tunnel" in type_lower:
+            return 0.95  # Tunnels can be less reliable
+        else:
+            return 0.95
 
     @staticmethod
     def _prefix_to_mask(prefix_len: int) -> int:
@@ -178,6 +240,8 @@ class InterfaceRecord(BaseModel):
             ip=ip_int,
             prefix_len=prefix_len,
             is_up=iface.is_up,
+            bandwidth_mbps=iface.bandwidth_mbps,
+            interface_type=iface.type,
         )
 
     model_config = {
@@ -187,23 +251,70 @@ class InterfaceRecord(BaseModel):
 
 class Link(BaseModel):
     """
-    Arco del grafo: subnet condivisa tra nodi.
+    Arco del grafo: connessione tra nodi basata su next-hop routing.
 
-    Un link rappresenta una connessione L2/L3 tra due o piu' nodi
-    sulla stessa subnet IP.
+    Un link rappresenta una connessione diretta tra due nodi come risulta
+    dalle routing table (next-hop relationship).
+
+    Supporta anche il formato legacy (solo subnet + endpoints) per backward compatibility.
     """
 
+    source: Optional[str] = Field(
+        None,
+        description="Node key sorgente (es. 'fw1:root')"
+    )
+    target: Optional[str] = Field(
+        None,
+        description="Node key destinazione (next-hop, es. 'fw2:root')"
+    )
     subnet: str = Field(
         ...,
-        description="Network ID della subnet (es. '192.168.1.0/24')"
+        description="Network ID della subnet condivisa (es. '192.168.1.0/24')"
     )
+    source_interface: Optional[str] = Field(
+        None,
+        description="Nome interfaccia di uscita dal nodo sorgente (es. 'port1')"
+    )
+    target_ip: Optional[str] = Field(
+        None,
+        description="IP del next-hop (gateway) su questo link"
+    )
+    # Legacy field for backward compatibility with old snapshots
     endpoints: Set[str] = Field(
         default_factory=set,
-        description="Node keys dei nodi connessi (es. {'fw1:root', 'fw2:root'})"
+        description="Set of node_keys connected by this link (legacy format)"
     )
+    cost: int = Field(
+        1,
+        description="Metrica/costo del link (da routing table)"
+    )
+    protocol: str = Field(
+        "connected",
+        description="Protocollo di routing (connected, static, ospf, bgp)"
+    )
+    distance: int = Field(
+        0,
+        description="Administrative Distance del protocollo"
+    )
+    bandwidth_mbps: Optional[int] = Field(
+        None,
+        description="Bandwidth dell'interfaccia sorgente in Mbps"
+    )
+    latency_ms: Optional[float] = Field(
+        None,
+        description="Latenza stimata del link in millisecondi"
+    )
+    reliability: Optional[float] = Field(
+        None,
+        ge=0.0,
+        le=1.0,
+        description="Punteggio di affidabilità del link (0.0 - 1.0)"
+    )
+
+    # Backward compatibility: interfaces field
     interfaces: List[InterfaceRecord] = Field(
         default_factory=list,
-        description="Interfacce che partecipano a questo link"
+        description="Interfacce che partecipano a questo link (per compatibilità)"
     )
 
     @property
@@ -218,10 +329,30 @@ class Link(BaseModel):
     @property
     def endpoint_count(self) -> int:
         """Numero di nodi connessi a questo link."""
-        return len(self.endpoints)
+        if self.endpoints:
+            return len(self.endpoints)
+        return 2 if self.source and self.target else 0
+
+    def get_endpoints(self) -> Set[str]:
+        """Returns endpoints, computing from source/target if not set directly."""
+        if self.endpoints:
+            return self.endpoints
+        result = set()
+        if self.source:
+            result.add(self.source)
+        if self.target:
+            result.add(self.target)
+        return result
 
     def __repr__(self) -> str:
-        return f"Link({self.subnet}, endpoints={len(self.endpoints)})"
+        metrics = f"cost={self.cost}"
+        if self.bandwidth_mbps:
+            metrics += f", bw={self.bandwidth_mbps}Mbps"
+        if self.latency_ms:
+            metrics += f", lat={self.latency_ms:.2f}ms"
+        if self.reliability:
+            metrics += f", rel={self.reliability:.2f}"
+        return f"Link({self.source} -> {self.target} via {self.subnet}, {metrics})"
 
     model_config = {
         "str_strip_whitespace": True,

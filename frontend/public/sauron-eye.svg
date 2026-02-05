@@ -1,0 +1,38 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(64 64) rotate(90) scale(52)">
+      <stop offset="0" stop-color="#60A5FA" stop-opacity="0.9" />
+      <stop offset="0.45" stop-color="#3B82F6" stop-opacity="0.7" />
+      <stop offset="1" stop-color="#1E3A8A" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="iris" x1="28" y1="64" x2="100" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#93C5FD" />
+      <stop offset="0.5" stop-color="#3B82F6" />
+      <stop offset="1" stop-color="#1D4ED8" />
+    </linearGradient>
+  </defs>
+
+  <!-- Outer glow -->
+  <circle cx="64" cy="64" r="52" fill="url(#glow)" />
+
+  <!-- Cyber iris ring -->
+  <ellipse cx="64" cy="64" rx="42" ry="24" fill="none" stroke="#60A5FA" stroke-width="4" />
+  <ellipse cx="64" cy="64" rx="36" ry="20" fill="none" stroke="#3B82F6" stroke-width="3" stroke-dasharray="6 6" />
+
+  <!-- Core eye shape -->
+  <path d="M20 64C30 46 47 36 64 36C81 36 98 46 108 64C98 82 81 92 64 92C47 92 30 82 20 64Z" fill="url(#iris)" stroke="#1E40AF" stroke-width="3" />
+
+  <!-- Pupil -->
+  <circle cx="64" cy="64" r="10" fill="#0F172A" />
+  <circle cx="64" cy="64" r="4" fill="#60A5FA" />
+
+  <!-- Circuit ticks -->
+  <path d="M64 22V14" stroke="#60A5FA" stroke-width="3" stroke-linecap="round" />
+  <path d="M64 114V106" stroke="#60A5FA" stroke-width="3" stroke-linecap="round" />
+  <path d="M22 64H14" stroke="#60A5FA" stroke-width="3" stroke-linecap="round" />
+  <path d="M114 64H106" stroke="#60A5FA" stroke-width="3" stroke-linecap="round" />
+
+  <!-- Scan arcs -->
+  <path d="M30 42C38 34 50 30 64 30" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" />
+  <path d="M98 86C90 94 78 98 64 98" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" />
+</svg>

@@ -130,8 +130,21 @@ class ResolverService:
             candidates=sorted(device_candidates),
         )
 
-    def resolve_target_ip(self, target_spec: str) -> str:
-        """Valida e normalizza l'IP di destinazione."""
+    def resolve_target_ip(self, target_spec: str, snapshot: Optional[NetworkSnapshot] = None) -> str:
+        """
+        Valida e normalizza la destinazione.
+
+        Accetta:
+        - IP address (es. "8.8.8.8")
+        - Node key (es. "firewall montevarchi:root") - risolve al primo IP dell'interfaccia
+
+        Args:
+            target_spec: IP o node_key
+            snapshot: NetworkSnapshot (opzionale, richiesto per risolvere node_key)
+
+        Returns:
+            IP address normalizzato
+        """
         if target_spec is None:
             raise InvalidTargetError("Destinazione mancante.")
 
@@ -139,17 +152,51 @@ class ResolverService:
         if not target_spec:
             raise InvalidTargetError("Destinazione vuota.")
 
+        # Try parsing as IP first
         try:
             ip = ipaddress.ip_address(target_spec)
-        except ValueError as exc:
-            raise InvalidTargetError(
-                f"IP destinazione non valido: '{target_spec}'."
-            ) from exc
+            if isinstance(ip, ipaddress.IPv6Address):
+                raise InvalidTargetError("IPv6 non supportato in questa versione.")
+            return str(ip)
+        except ValueError:
+            pass  # Not an IP, try as node_key
 
-        if isinstance(ip, ipaddress.IPv6Address):
-            raise InvalidTargetError("IPv6 non supportato in questa versione.")
+        # Try resolving as node_key
+        if snapshot and ":" in target_spec:
+            nodes = snapshot.topology.nodes
+            # Check if it's a valid node_key
+            if target_spec in nodes:
+                # Find an IP for this node from the topology
+                ip = self._find_ip_for_node(target_spec, snapshot)
+                if ip:
+                    return ip
+                raise InvalidTargetError(
+                    f"Nodo '{target_spec}' trovato ma non ha IP configurati."
+                )
 
-        return str(ip)
+            # Case-insensitive match
+            node_key_lower = target_spec.lower()
+            for node_key in nodes:
+                if node_key.lower() == node_key_lower:
+                    ip = self._find_ip_for_node(node_key, snapshot)
+                    if ip:
+                        return ip
+                    raise InvalidTargetError(
+                        f"Nodo '{target_spec}' trovato ma non ha IP configurati."
+                    )
+
+        raise InvalidTargetError(
+            f"Destinazione non valida: '{target_spec}'. Specifica un IP o un nodo esistente."
+        )
+
+    def _find_ip_for_node(self, node_key: str, snapshot: NetworkSnapshot) -> Optional[str]:
+        """Trova un IP valido per un nodo dalla topologia."""
+        # Search in links for interfaces belonging to this node
+        for link in snapshot.topology.links:
+            for iface in link.interfaces:
+                if iface.node.node_key == node_key and iface.ip and iface.ip != 0:
+                    return iface.ip_str
+        return None
 
     @staticmethod
     def _build_indexes(nodes: set[str]) -> tuple[Dict[str, str], Dict[str, List[str]]]:
