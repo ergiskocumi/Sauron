@@ -68,7 +68,7 @@ const NetworkNode = memo(({ data, selected }) => {
   const pathActive = data.pathActive;
 
   // Determine node styling based on path role
-  const getNodeStyle = () => {
+  const nodeStyle = useMemo(() => {
     if (isPathStart) {
       return 'bg-green-50/50 border-green-500 scale-110 shadow-2xl shadow-green-500/20 z-20';
     }
@@ -89,14 +89,17 @@ const NetworkNode = memo(({ data, selected }) => {
       return 'bg-white border-blue-400 ring-4 ring-blue-50 scale-105 shadow-md';
     }
     return cn('bg-white hover:border-blue-300 hover:shadow-md', colors.border);
-  };
+  }, [isPathStart, isPathEnd, isPathNode, data.isSource, pathActive, selected, colors.border]);
 
   const isHighlightedNode = isPathStart || isPathEnd || isPathNode || data.isSource;
 
   return (
     <div className={cn(
-      "px-3 py-2 rounded-2xl border transition-all duration-500 flex flex-col items-center min-w-[110px] group relative shadow-sm",
-      getNodeStyle()
+      "px-3 py-2 rounded-2xl border flex flex-col items-center min-w-[110px] group relative shadow-sm",
+      // Performance: specifico solo le transizioni necessarie. 
+      // La posizione è gestita da React Flow (transform), NON dobbiamo transizionarla o avremo lag.
+      "transition-[border-color,background-color,box-shadow,opacity] duration-300",
+      nodeStyle
     )}>
       {/* START / END Label Badge */}
       {isPathStart && (
@@ -184,20 +187,29 @@ const NetworkEdge = memo(({
   markerEnd,
   data,
 }) => {
-  const [edgePath, labelX, labelY] = getBezierPath({
+  const [edgePath, labelX, labelY] = useMemo(() => getBezierPath({
     sourceX,
     sourceY,
     sourcePosition,
     targetX,
     targetY,
     targetPosition,
-  });
+  }), [sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition]);
 
   const protocol = data?.protocol || 'connected';
   const colors = PROTOCOL_COLORS[protocol] || PROTOCOL_COLORS.default;
   const isHighlighted = data?.isHighlighted;
   const edgeHopIndex = data?.edgeHopIndex;
   const pathActive = data?.pathActive;
+
+  const edgeStyle = useMemo(() => ({
+    ...style,
+    stroke: isHighlighted ? '#2563eb' : '#64748b',
+    strokeWidth: isHighlighted ? 3 : 1.2,
+    opacity: isHighlighted ? 1 : (pathActive ? 0.05 : 0.6),
+    // Performance: SPECIFIC transitions only. NEVER use 'all' on edges as it creates lag during drag
+    transition: 'stroke 0.3s ease, stroke-width 0.3s ease, opacity 0.3s ease',
+  }), [style, isHighlighted, pathActive]);
 
   return (
     <>
@@ -217,13 +229,7 @@ const NetworkEdge = memo(({
       
       <path
         id={id}
-        style={{
-          ...style,
-          stroke: isHighlighted ? '#2563eb' : '#64748b',
-          strokeWidth: isHighlighted ? 3 : 1.2,
-          opacity: isHighlighted ? 1 : (pathActive ? 0.05 : 0.6),
-          transition: 'all 0.5s ease',
-        }}
+        style={edgeStyle}
         className={cn(
           "react-flow__edge-path",
           isHighlighted ? "stroke-[4px]" : ""
@@ -243,12 +249,12 @@ const NetworkEdge = memo(({
           className="z-50"
         >
           <div className={cn(
-            "flex flex-col items-center px-1.5 py-0.5 rounded-md border transition-all duration-300 backdrop-blur-sm shadow-sm",
+            "flex flex-col items-center px-1.5 py-0.5 rounded-md border backdrop-blur-sm shadow-sm",
             isHighlighted
-              ? "bg-blue-600 border-blue-500 scale-110 shadow-lg shadow-blue-500/30 text-white z-10"
+              ? "bg-blue-600 border-blue-500 scale-110 shadow-lg shadow-blue-500/30 text-white z-10 transition-all duration-300"
               : cn(
                   "bg-white/80 border-slate-200 text-slate-500 opacity-70",
-                  pathActive && "opacity-0 scale-50" // Scompaiono se stiamo guardando un ALTRO percorso
+                  pathActive && "opacity-0 scale-50 transition-opacity duration-300" 
                 )
           )}>
             {isHighlighted && edgeHopIndex && (
@@ -420,13 +426,13 @@ export const NetworkMap = () => {
         initialEdges
       );
 
-      // Save original state for path reset
-      setOriginalNodes([...layoutedNodes]);
-      setOriginalEdges([...layoutedEdges]);
+      // Update state with minimal triggers
+      setOriginalNodes(layoutedNodes);
+      setOriginalEdges(layoutedEdges);
       setAvailableNodes(data.nodes);
 
-      setNodes([...layoutedNodes]);
-      setEdges([...layoutedEdges]);
+      setNodes(layoutedNodes);
+      setEdges(layoutedEdges);
       setLastUpdated(new Date().toLocaleTimeString());
       setError(null);
 
@@ -476,23 +482,34 @@ export const NetworkMap = () => {
       direction
     );
 
-    setNodes([...layoutedNodes]);
-    setEdges([...layoutedEdges]);
+    setNodes(layoutedNodes);
+    setEdges(layoutedEdges);
   }, [nodes, edges, setNodes, setEdges]);
 
   // Calculate path and apply highlighting
   const handleCalculatePath = useCallback(async (source, destination) => {
     try {
       const result = await apiCalculatePath(source, destination);
-      const pathNodeKeys = result.nodeKeys || [];
-      const pathLength = pathNodeKeys.length;
+      const pathNodeKeys = new Set(result.nodeKeys || []);
+      const pathArray = result.nodeKeys || [];
+      const pathLength = pathArray.length;
+
+      // Create a map of edge connections in path for O(1) lookup
+      const pathEdges = new Set();
+      for (let i = 0; i < pathArray.length - 1; i++) {
+        pathEdges.add(`${pathArray[i]}->${pathArray[i+1]}`);
+        pathEdges.add(`${pathArray[i+1]}->${pathArray[i]}`);
+      }
 
       // Highlight nodes with clear path visualization
-      const highlightedNodes = originalNodes.map(node => {
-        const pathIndex = pathNodeKeys.indexOf(node.id);
+      setNodes(nds => nds.map(node => {
+        const pathIndex = pathArray.indexOf(node.id);
         const isInPath = pathIndex !== -1;
         const isPathStart = pathIndex === 0;
         const isPathEnd = pathIndex === pathLength - 1 && pathLength > 1;
+
+        // Only update if something changed to preserve reference where possible
+        if (!isInPath && !node.data.pathActive && !node.data.isSource) return node;
 
         return {
           ...node,
@@ -501,29 +518,30 @@ export const NetworkMap = () => {
             isHighlighted: isInPath && !isPathStart && !isPathEnd,
             isPathStart,
             isPathEnd,
-            hopIndex: isInPath ? pathIndex + 1 : null, // 1-based hop number
-            pathActive: true, // Flag to dim non-path nodes
-            isSource: false, // Clear selection state
+            hopIndex: isInPath ? pathIndex + 1 : null,
+            pathActive: true,
+            isSource: false,
           },
         };
-      });
+      }));
 
       // Highlight edges with direction awareness
-      const highlightedEdges = originalEdges.map(edge => {
-        let isHighlighted = false;
+      setEdges(eds => eds.map(edge => {
+        let isHighlighted = pathEdges.has(`${edge.source}->${edge.target}`);
         let edgeHopIndex = null;
 
-        for (let i = 0; i < pathNodeKeys.length - 1; i++) {
-          const currentHop = pathNodeKeys[i];
-          const nextHop = pathNodeKeys[i + 1];
-          // Check both directions
-          if ((edge.source === currentHop && edge.target === nextHop) ||
-              (edge.source === nextHop && edge.target === currentHop)) {
-            isHighlighted = true;
-            edgeHopIndex = i + 1;
-            break;
+        if (isHighlighted) {
+          // Find the hop index
+          for (let i = 0; i < pathArray.length - 1; i++) {
+            if ((edge.source === pathArray[i] && edge.target === pathArray[i+1]) ||
+                (edge.source === pathArray[i+1] && edge.target === pathArray[i])) {
+              edgeHopIndex = i + 1;
+              break;
+            }
           }
         }
+
+        if (!isHighlighted && !edge.data.pathActive) return edge;
 
         return {
           ...edge,
@@ -531,28 +549,25 @@ export const NetworkMap = () => {
             ...edge.data,
             isHighlighted,
             edgeHopIndex,
-            pathActive: true, // Aggiunto per permettere all'Edge di spegnersi
+            pathActive: true,
           },
           style: {
             ...edge.style,
-            opacity: isHighlighted ? 1 : 0.05, // Quasi invisibile se non in path
+            opacity: isHighlighted ? 1 : 0.05,
           },
           markerEnd: {
             ...edge.markerEnd,
             opacity: isHighlighted ? 1 : 0.05,
           }
         };
-      });
-
-      setNodes(highlightedNodes);
-      setEdges(highlightedEdges);
+      }));
 
       return result;
     } catch (error) {
       console.error('Path calculation failed:', error);
       throw error;
     }
-  }, [originalNodes, originalEdges, apiCalculatePath, setNodes, setEdges]);
+  }, [apiCalculatePath, setNodes, setEdges]);
 
   // Reset highlighting
   const handleResetPath = useCallback(() => {
@@ -639,6 +654,9 @@ export const NetworkMap = () => {
         fitViewOptions={FIT_VIEW_OPTIONS}
         className="bg-slate-50/50"
         proOptions={PRO_OPTIONS}
+        onlyRenderVisibleElements={true}
+        maxZoom={1.5}
+        minZoom={0.2}
       >
         <Background gap={20} color="#e2e8f0" variant="dots" />
         <Controls showInteractive={false} className="!bg-white !border-slate-200 !shadow-lg !rounded-xl overflow-hidden" />
