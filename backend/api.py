@@ -556,7 +556,7 @@ async def calculate_path(request: PathRequest):
             )
 
         try:
-            target_ip = resolver.resolve_target_ip(request.destination)
+            target_ip = resolver.resolve_target_ip(request.destination, snapshot)
         except InvalidTargetError as e:
             raise HTTPException(
                 status_code=400,
