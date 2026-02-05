@@ -16,6 +16,8 @@ import ipaddress
 import logging
 from typing import Dict, List, Optional, Set, Tuple
 
+from collections import Counter
+
 from pydantic import BaseModel, Field
 
 from application.models.snapshot import NetworkSnapshot
@@ -42,12 +44,26 @@ class InterfaceDetail(BaseModel):
     bandwidth_mbps: Optional[int] = None
 
 
+class RouteDetail(BaseModel):
+    """Dettaglio di una singola rotta per la routing table view."""
+
+    destination: str
+    gateway: str
+    interface: str
+    protocol: str
+    metric: int
+    distance: int
+    is_default: bool
+
+
 class VdomDetail(BaseModel):
-    """Dettaglio di un VDOM con le sue interfacce."""
+    """Dettaglio di un VDOM con le sue interfacce e rotte."""
 
     name: str
     interfaces: List[InterfaceDetail]
     routes_count: int
+    routes: List[RouteDetail] = Field(default_factory=list)
+    route_protocols: Dict[str, int] = Field(default_factory=dict)
 
 
 class InternalLink(BaseModel):
@@ -162,12 +178,30 @@ class FirewallViewService:
                     iface_details.append(detail)
                     all_subnets.add(iface.network_id)
 
-            routes_count = len(device_routes.get(vdom_name, []))
+            vdom_routes = device_routes.get(vdom_name, [])
+            routes_count = len(vdom_routes)
+
+            # Build route details and protocol summary
+            route_details = []
+            protocol_counter: Counter = Counter()
+            for route in vdom_routes:
+                route_details.append(RouteDetail(
+                    destination=route.destination,
+                    gateway=route.gateway,
+                    interface=route.interface,
+                    protocol=route.protocol,
+                    metric=route.metric,
+                    distance=route.distance,
+                    is_default=route.is_default_route,
+                ))
+                protocol_counter[route.protocol] += 1
 
             vdoms.append(VdomDetail(
                 name=vdom_name,
                 interfaces=iface_details,
                 routes_count=routes_count,
+                routes=route_details,
+                route_protocols=dict(protocol_counter),
             ))
 
         # 6. Trova link inter-VDOM
