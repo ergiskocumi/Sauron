@@ -48,6 +48,10 @@ from infrastructure.snapshot_repository import (
 from application.services.scan_service import ScanService
 from application.services.topology_service import TopologyService
 from application.services.pathfinder_service import PathfinderService
+from application.services.firewall_view_service import (
+    FirewallViewService,
+    FirewallTopologyResponse,
+)
 from application.services.dijkstra_service import (
     DijkstraService,
     PROFILE_BALANCED,
@@ -230,6 +234,10 @@ class PathRequest(BaseModel):
         None,
         description="Profilo Dijkstra: 'balanced', 'bulk', 'realtime', 'critical', 'cost_only'",
         examples=["balanced", "bulk", "realtime"],
+    )
+    exclude_default_route: bool = Field(
+        False,
+        description="Se True, esclude la default route (0.0.0.0/0) dal pathfinding",
     )
 
 
@@ -574,9 +582,62 @@ async def calculate_path(request: PathRequest):
                 start_node=source_node,
                 target_ip=target_ip,
                 max_ttl=request.max_ttl,
+                exclude_default_route=request.exclude_default_route,
             )
 
         return result
+
+    except HTTPException:
+        raise
+    except (SnapshotNotFoundError, SnapshotCorruptedError) as e:
+        logger.error(f"Snapshot error: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
+
+
+@app.get("/api/topology/firewall/{device_id}", response_model=FirewallTopologyResponse)
+async def get_firewall_topology(device_id: str, exclude_default: bool = True):
+    """
+    Restituisce la topologia interna di un singolo firewall.
+
+    Mostra i VDOM, le interfacce, i link inter-VDOM e i peer esterni.
+    Utile per la vista "Micro" (single firewall drill-down).
+
+    Args:
+        device_id: ID del firewall (es. 'fw-milano')
+        exclude_default: Se True (default), esclude le default route 0.0.0.0/0
+
+    Returns:
+        FirewallTopologyResponse
+
+    Raises:
+        404: Se snapshot non esiste o device_id non trovato
+    """
+    if not snapshot_repository.exists(DEFAULT_SNAPSHOT_PATH):
+        raise HTTPException(
+            status_code=404,
+            detail="No snapshot found. Run /api/scan first.",
+        )
+
+    try:
+        snapshot = snapshot_repository.load(DEFAULT_SNAPSHOT_PATH)
+
+        # Verifica che il device_id esista nello snapshot
+        fw_metadata = snapshot.get_firewall_metadata(device_id)
+        if fw_metadata is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Firewall '{device_id}' not found in snapshot.",
+            )
+
+        service = FirewallViewService()
+        return service.get_firewall_topology(
+            snapshot=snapshot,
+            device_id=device_id,
+            exclude_default=exclude_default,
+        )
 
     except HTTPException:
         raise

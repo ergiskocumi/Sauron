@@ -47,13 +47,14 @@ import { extractErrorMessage } from '../utils/errors';
  *   exit_gateway: "10.0.0.1"
  * }
  */
-export const calculatePath = async (source, destination, maxTtl = 64, algorithm = 'dijkstra') => {
+export const calculatePath = async (source, destination, maxTtl = 64, algorithm = 'dijkstra', excludeDefaultRoute = false) => {
   try {
     const response = await apiClient.post('/api/path', {
       source,
       destination,
       max_ttl: maxTtl,
       algorithm,  // 'dijkstra' uses topology links, 'lpm' uses routing tables
+      exclude_default_route: excludeDefaultRoute,
     });
     return response.data;
   } catch (error) {
