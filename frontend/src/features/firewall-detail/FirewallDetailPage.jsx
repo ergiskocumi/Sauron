@@ -781,30 +781,38 @@ const ObjectsTab = memo(({ objects }) => {
                   key={obj.name}
                   className="bg-white border border-slate-100 rounded-2xl p-4 hover:border-blue-200 hover:shadow-md transition-all"
                 >
-                  <div className="font-bold text-slate-900 text-sm mb-1">{obj.name}</div>
-                  <div className="space-y-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="font-bold text-slate-900 text-sm">{obj.name}</div>
+                    <span className={cn(
+                      "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+                      typeInfo.cls
+                    )}>
+                      {typeInfo.label}
+                    </span>
+                  </div>
+                  <div className="space-y-2 mt-2">
                     {obj.subnet && (
-                      <code className="block text-xs font-mono text-slate-600 bg-slate-50 px-2 py-1 rounded-lg">
+                      <code className="block text-xs font-mono text-slate-700 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
                         {obj.subnet}
                       </code>
                     )}
                     {obj.fqdn && (
-                      <code className="block text-xs font-mono text-purple-600 bg-purple-50 px-2 py-1 rounded-lg">
+                      <code className="block text-xs font-mono text-purple-700 bg-purple-50 px-2 py-1 rounded-lg border border-purple-100">
                         {obj.fqdn}
                       </code>
                     )}
                     {obj.start_ip && obj.end_ip && (
-                      <code className="block text-xs font-mono text-teal-600 bg-teal-50 px-2 py-1 rounded-lg">
+                      <code className="block text-xs font-mono text-teal-700 bg-teal-50 px-2 py-1 rounded-lg border border-teal-100">
                         {obj.start_ip} - {obj.end_ip}
                       </code>
                     )}
                     {obj.associated_interface && (
-                      <span className="text-[10px] text-slate-400">
-                        via <span className="font-bold">{obj.associated_interface}</span>
+                      <span className="text-[10px] text-slate-500">
+                        via <span className="font-bold text-slate-700">{obj.associated_interface}</span>
                       </span>
                     )}
                     {obj.comment && (
-                      <p className="text-[10px] text-slate-400 italic mt-1">{obj.comment}</p>
+                      <p className="text-[10px] text-slate-400 italic">{obj.comment}</p>
                     )}
                   </div>
                 </div>
