@@ -35,7 +35,7 @@ import {
 import { Badge } from '../../components/ui/Badge';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Alert } from '../../components/ui/Alert';
-import { RefreshCw, Server, Globe, Shield, Copy, Check, ExternalLink, Plus, List } from 'lucide-react';
+import { RefreshCw, Server, Globe, Shield, Copy, Check, ExternalLink, Plus, List, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { AddFirewallForm } from './AddFirewallForm';
 
@@ -247,13 +247,28 @@ export const InventoryTable = () => {
                         </div>
                       </TableCell>
                       <TableCell className="pr-8">
-                        <div className="flex items-center justify-end gap-4">
+                        <div className="flex items-center justify-end gap-3">
                           <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-2xl border border-green-100 group-hover:bg-green-500 group-hover:text-white transition-all duration-300">
                             <div className="w-1.5 h-1.5 bg-green-500 rounded-full group-hover:bg-white animate-pulse" />
                             <span className="text-[11px] font-black uppercase tracking-widest leading-none">
                               {firewall.enabled ? 'Live' : 'Off'}
                             </span>
                           </div>
+                          
+                          <div className="relative group/detail">
+                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 scale-95 opacity-0 group-hover/detail:opacity-100 group-hover/detail:scale-100 pointer-events-none transition-all duration-300 z-10">
+                              <div className="bg-slate-900 px-3 py-1.5 rounded-xl shadow-2xl">
+                                <span className="text-[10px] font-black text-white whitespace-nowrap tracking-widest uppercase">
+                                  Dettaglio
+                                </span>
+                              </div>
+                              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45" />
+                            </div>
+                            <button className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-xl border border-transparent hover:border-slate-100 transition-all shadow-hover shadow-blue-500/5 active:scale-90">
+                              <Eye size={18} />
+                            </button>
+                          </div>
+
                           <button className="opacity-0 group-hover:opacity-100 p-2.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-xl border border-transparent hover:border-slate-100 transition-all shadow-hover shadow-blue-500/5">
                             <ExternalLink size={18} />
                           </button>
@@ -350,7 +365,11 @@ export const InventoryTable = () => {
                   </div>
                   
                   {/* Action Footer */}
-                  <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
+                    <button className="flex items-center gap-2 text-[11px] font-black text-slate-400 hover:text-blue-600 transition-colors uppercase tracking-[0.15em]">
+                       <Eye size={16} />
+                       Vedi Dettagli
+                    </button>
                     <a
                        href={`https://${firewall.host}`}
                        target="_blank" 
