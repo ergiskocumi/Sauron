@@ -126,8 +126,8 @@ const FirewallHeader = memo(({ data, onBack, onRefresh }) => {
   return (
     <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
       {/* Top Bar */}
-      <div className="bg-slate-900 px-8 py-5 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="bg-slate-900 px-6 md:px-8 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex items-start md:items-center gap-4">
           <button
             onClick={onBack}
             className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
@@ -135,10 +135,10 @@ const FirewallHeader = memo(({ data, onBack, onRefresh }) => {
             <ArrowLeft size={18} className="text-white" />
           </button>
           <div>
-            <h1 className="text-xl font-black text-white tracking-tight">
+            <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">
               {status.hostname || data.device_id}
             </h1>
-            <div className="flex items-center gap-3 mt-0.5">
+            <div className="flex flex-wrap items-center gap-2 mt-1">
               {status.model_name && (
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   {status.model_name}
@@ -158,7 +158,13 @@ const FirewallHeader = memo(({ data, onBack, onRefresh }) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3 md:gap-4">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-xl">
+            <Wifi size={14} className="text-emerald-400" />
+            <span className="text-[10px] font-black text-emerald-200 uppercase tracking-widest">
+              Live Monitoring
+            </span>
+          </div>
           {status.uptime > 0 && (
             <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-xl">
               <Clock size={14} className="text-slate-400" />
@@ -177,9 +183,11 @@ const FirewallHeader = memo(({ data, onBack, onRefresh }) => {
       </div>
 
       {/* Resource Gauges */}
-      <div className="px-8 py-6 flex items-center gap-8">
-        <DonutGauge value={resources.cpu_usage} label="CPU" color="blue" icon={Cpu} />
-        <DonutGauge value={resources.memory_usage} label="RAM" color="green" icon={MemoryStick} />
+      <div className="px-6 md:px-8 py-6 grid grid-cols-1 lg:grid-cols-[auto_auto_1fr_auto] gap-6 lg:gap-8 items-center">
+        <div className="flex items-center gap-6 justify-center lg:justify-start">
+          <DonutGauge value={resources.cpu_usage} label="CPU" color="blue" icon={Cpu} />
+          <DonutGauge value={resources.memory_usage} label="RAM" color="green" icon={MemoryStick} />
+        </div>
 
         {/* Session Counter */}
         <div className="flex-1 flex items-center justify-center">
@@ -202,7 +210,7 @@ const FirewallHeader = memo(({ data, onBack, onRefresh }) => {
         </div>
 
         {/* Summary Stats */}
-        <div className="flex gap-4">
+        <div className="flex flex-wrap justify-center lg:justify-end gap-4">
           <StatPill label="VDOMs" value={data.vdoms.length} icon={Shield} color="violet" />
           <StatPill
             label="Subnets"
