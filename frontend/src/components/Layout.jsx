@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 import { 
   Network, 
   Database, 
@@ -17,10 +18,21 @@ import { cn } from '../lib/utils';
 import { TABS } from '../constants';
 
 const SIDEBAR_TRANSITION = { type: "spring", stiffness: 300, damping: 30 };
+const SIDEBAR_TRANSITION_REDUCED = { duration: 0.1 };
 
-export const Layout = ({ children, activeTab, setActiveTab }) => {
+export const Layout = memo(({ children, activeTab, setActiveTab }) => {
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const searchInputRef = useRef(null);
+  const shouldReduceMotion = useReducedMotion();
+
+  // Detect mobile/tablet for touch optimization
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -33,6 +45,8 @@ export const Layout = ({ children, activeTab, setActiveTab }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const transition = shouldReduceMotion ? SIDEBAR_TRANSITION_REDUCED : SIDEBAR_TRANSITION;
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex font-sans text-slate-900 overflow-x-hidden">
       {/* Sidebar */}
@@ -41,7 +55,7 @@ export const Layout = ({ children, activeTab, setActiveTab }) => {
         onMouseLeave={() => setIsSidebarHovered(false)}
         initial={false}
         animate={{ width: isSidebarHovered ? 280 : 88 }}
-        transition={SIDEBAR_TRANSITION}
+        transition={transition}
         className="fixed left-0 top-0 h-full bg-slate-900 text-white shadow-2xl z-50 flex flex-col overflow-hidden border-r border-slate-800"
       >
         {/* Logo Section */}
@@ -49,13 +63,13 @@ export const Layout = ({ children, activeTab, setActiveTab }) => {
           <div className="bg-blue-500 p-2.5 rounded-xl shadow-lg shadow-blue-500/30 flex-shrink-0">
             <Shield className="w-6 h-6 text-white" />
           </div>
-          <AnimatePresence>
+          <AnimatePresence mode="wait">
             {isSidebarHovered && (
               <motion.div
-                initial={{ opacity: 0, x: -20 }}
+                initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                transition={{ duration: 0.2, delay: 0.1 }}
+                exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -20 }}
+                transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2, delay: 0.1 }}
                 className="whitespace-nowrap"
               >
                 <h1 className="text-xl font-bold tracking-tight text-white">Sauron</h1>
@@ -117,10 +131,10 @@ export const Layout = ({ children, activeTab, setActiveTab }) => {
             <AnimatePresence>
               {isSidebarHovered && (
                 <motion.div
-                  initial={{ opacity: 0, x: -20 }}
+                  initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.2, delay: 0.1 }}
+                  exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -20 }}
+                  transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.2, delay: 0.1 }}
                   className="overflow-hidden"
                 >
                   <p className="text-sm font-semibold truncate leading-tight text-white">Admin User</p>
@@ -135,7 +149,7 @@ export const Layout = ({ children, activeTab, setActiveTab }) => {
       {/* Main Container */}
       <motion.div 
         animate={{ paddingLeft: isSidebarHovered ? 280 : 88 }}
-        transition={SIDEBAR_TRANSITION}
+        transition={transition}
         className="flex-1 flex flex-col min-w-0" 
       >
         <div className="w-full flex-1 flex flex-col">
@@ -182,9 +196,12 @@ export const Layout = ({ children, activeTab, setActiveTab }) => {
       </motion.div>
     </div>
   );
-};
+});
 
-const NavItem = ({ icon, label, active, onClick, isExpanded, disabled = false }) => {
+Layout.displayName = 'Layout';
+
+const NavItem = memo(({ icon, label, active, onClick, isExpanded, disabled = false }) => {
+  const shouldReduceMotion = useReducedMotion();
   return (
     <button
       onClick={onClick}
@@ -203,13 +220,13 @@ const NavItem = ({ icon, label, active, onClick, isExpanded, disabled = false })
         {icon}
       </div>
       
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {isExpanded && (
           <motion.span
-            initial={{ opacity: 0, x: -20 }}
+            initial={shouldReduceMotion ? { opacity: 1 } : { opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, x: -20 }}
+            transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.3, delay: 0.1 }}
             className="font-medium whitespace-nowrap text-sm text-left block"
           >
             {label}
@@ -231,4 +248,6 @@ const NavItem = ({ icon, label, active, onClick, isExpanded, disabled = false })
       )}
     </button>
   );
-};
+});
+
+NavItem.displayName = 'NavItem';
