@@ -1,180 +1,186 @@
 import { motion } from 'framer-motion';
+import { ComposableMap, Geographies, Geography, Marker, Line } from 'react-simple-maps';
+
+// URL per il topojson del mondo
+const geoUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+
+// Coordinate reali dei data center
+const markers = [
+  { name: 'New York', coordinates: [-74.006, 40.7128] },
+  { name: 'Los Angeles', coordinates: [-118.2437, 34.0522] },
+  { name: 'London', coordinates: [-0.1276, 51.5074] },
+  { name: 'Frankfurt', coordinates: [8.6821, 50.1109] },
+  { name: 'Paris', coordinates: [2.3522, 48.8566] },
+  { name: 'Milan', coordinates: [9.19, 45.4642] },
+  { name: 'Singapore', coordinates: [103.8198, 1.3521] },
+  { name: 'Tokyo', coordinates: [139.6917, 35.6895] },
+  { name: 'Sydney', coordinates: [151.2093, -33.8688] },
+  { name: 'Mumbai', coordinates: [72.8777, 19.076] },
+  { name: 'Dubai', coordinates: [55.2708, 25.2048] },
+  { name: 'São Paulo', coordinates: [-46.6333, -23.5505] },
+];
+
+// Connessioni casuali tra i data center
+const connections = [
+  { from: 0, to: 2 },   // NYC -> London
+  { from: 0, to: 3 },   // NYC -> Frankfurt
+  { from: 2, to: 3 },   // London -> Frankfurt
+  { from: 2, to: 6 },   // London -> Singapore
+  { from: 3, to: 4 },   // Frankfurt -> Paris
+  { from: 3, to: 10 },  // Frankfurt -> Dubai
+  { from: 4, to: 5 },   // Paris -> Milan
+  { from: 6, to: 7 },   // Singapore -> Tokyo
+  { from: 6, to: 8 },   // Singapore -> Sydney
+  { from: 6, to: 9 },   // Singapore -> Mumbai
+  { from: 7, to: 8 },   // Tokyo -> Sydney
+  { from: 9, to: 10 },  // Mumbai -> Dubai
+  { from: 10, to: 5 },  // Dubai -> Milan
+  { from: 0, to: 1 },   // NYC -> LA
+  { from: 1, to: 7 },   // LA -> Tokyo
+  { from: 1, to: 6 },   // LA -> Singapore
+  { from: 0, to: 11 },  // NYC -> São Paulo
+  { from: 11, to: 5 },  // São Paulo -> Milan
+];
 
 const WorldMapBackground = () => {
-  // Locations dei data center (coordinate relative 0-1000)
-  const locations = [
-    { id: 'milan', name: 'Milan', x: 520, y: 180 },
-    { id: 'london', name: 'London', x: 480, y: 160 },
-    { id: 'paris', name: 'Paris', x: 490, y: 175 },
-    { id: 'frankfurt', name: 'Frankfurt', x: 510, y: 170 },
-    { id: 'ny', name: 'New York', x: 280, y: 190 },
-    { id: 'la', name: 'Los Angeles', x: 180, y: 210 },
-    { id: 'saopaulo', name: 'São Paulo', x: 340, y: 320 },
-    { id: 'singapore', name: 'Singapore', x: 720, y: 260 },
-    { id: 'tokyo', name: 'Tokyo', x: 780, y: 200 },
-    { id: 'sydney', name: 'Sydney', x: 820, y: 340 },
-    { id: 'dubai', name: 'Dubai', x: 620, y: 220 },
-    { id: 'mumbai', name: 'Mumbai', x: 680, y: 240 },
-    { id: 'capetown', name: 'Cape Town', x: 540, y: 380 },
-    { id: 'moscow', name: 'Moscow', x: 600, y: 140 },
-  ];
-
-  // Connessioni principali
-  const connections = [
-    { from: 'milan', to: 'london' },
-    { from: 'milan', to: 'frankfurt' },
-    { from: 'milan', to: 'paris' },
-    { from: 'london', to: 'ny' },
-    { from: 'frankfurt', to: 'dubai' },
-    { from: 'dubai', to: 'singapore' },
-    { from: 'dubai', to: 'mumbai' },
-    { from: 'singapore', to: 'tokyo' },
-    { from: 'singapore', to: 'sydney' },
-    { from: 'singapore', to: 'mumbai' },
-    { from: 'ny', to: 'la' },
-    { from: 'ny', to: 'saopaulo' },
-    { from: 'ny', to: 'london' },
-    { from: 'la', to: 'tokyo' },
-    { from: 'la', to: 'singapore' },
-    { from: 'saopaulo', to: 'capetown' },
-    { from: 'moscow', to: 'singapore' },
-    { from: 'moscow', to: 'frankfurt' },
-  ];
-
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* Gradient background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-blue-50/50" />
+      {/* Base */}
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-white to-blue-50" />
       
-      {/* World Map SVG */}
-      <svg 
-        viewBox="0 0 1000 500" 
-        className="absolute w-full h-full opacity-40"
-        preserveAspectRatio="xMidYMid slice"
-      >
-        {/* Continenti stilizzati in colori molto chiari */}
-        <g fill="#dbeafe" opacity="0.5">
-          {/* Nord America */}
-          <path d="M120 100 Q180 80 250 110 T320 180 Q300 250 230 280 T130 230 Q80 180 120 100" />
-          {/* Canada */}
-          <path d="M140 80 Q200 60 280 90 T320 120 Q280 100 220 100 T140 80" />
-          
-          {/* Sud America */}
-          <path d="M260 300 Q300 280 320 330 T300 430 Q260 460 240 400 T260 300" />
-          
-          {/* Europa */}
-          <path d="M450 120 Q520 100 580 130 T600 180 Q550 200 500 180 T450 120" />
-          
-          {/* Africa */}
-          <path d="M460 220 Q520 200 560 260 T540 380 Q480 400 460 340 T460 220" />
-          
-          {/* Asia */}
-          <path d="M600 120 Q750 80 850 130 T900 230 Q850 280 750 260 T600 180 Q580 150 600 120" />
-          
-          {/* India */}
-          <path d="M660 220 Q700 210 720 250 T700 320 Q660 310 660 270 T660 220" />
-          
-          {/* Australia */}
-          <path d="M760 340 Q820 320 860 350 T840 410 Q780 430 760 390 T760 340" />
-          
-          {/* Giappone */}
-          <path d="M800 180 Q820 170 830 200 T810 240 Q790 230 800 200 T800 180" />
-        </g>
+      {/* Mappa Reale */}
+      <div className="absolute inset-0 opacity-50">
+        <ComposableMap
+          projection="geoMercator"
+          projectionConfig={{
+            scale: 140,
+            center: [10, 30]
+          }}
+          style={{
+            width: '100%',
+            height: '100%',
+          }}
+        >
+          <Geographies geography={geoUrl}>
+            {({ geographies }) =>
+              geographies.map((geo) => (
+                <Geography
+                  key={geo.rsmKey}
+                  geography={geo}
+                  fill="#cbd5e1"
+                  stroke="#94a3b8"
+                  strokeWidth={0.5}
+                  style={{
+                    default: { outline: 'none' },
+                    hover: { outline: 'none' },
+                    pressed: { outline: 'none' },
+                  }}
+                />
+              ))
+            }
+          </Geographies>
 
-        {/* Connessioni - linee sottili */}
-        {connections.map((conn, i) => {
-          const from = locations.find(l => l.id === conn.from);
-          const to = locations.find(l => l.id === conn.to);
-          return (
-            <motion.line
-              key={i}
-              x1={from.x}
-              y1={from.y}
-              x2={to.x}
-              y2={to.y}
-              stroke="#93c5fd"
-              strokeWidth="1.5"
+          {/* Linee di connessione */}
+          {connections.map((conn, i) => (
+            <Line
+              key={`line-${i}`}
+              from={markers[conn.from].coordinates}
+              to={markers[conn.to].coordinates}
+              stroke="#60a5fa"
+              strokeWidth={1.5}
+              strokeLinecap="round"
               strokeDasharray="4 4"
-              initial={{ pathLength: 0, opacity: 0 }}
-              animate={{ pathLength: 1, opacity: 0.5 }}
-              transition={{ duration: 2.5, delay: i * 0.08 }}
             />
-          );
-        })}
+          ))}
 
-        {/* Pacchetti di dati che viaggiano */}
-        {connections.slice(0, 6).map((conn, i) => {
-          const from = locations.find(l => l.id === conn.from);
-          const to = locations.find(l => l.id === conn.to);
-          return (
-            <motion.circle
-              key={`pulse-${i}`}
-              r="5"
-              fill="#3b82f6"
-              initial={{ 
-                cx: from.x, 
-                cy: from.y,
-                opacity: 0,
-                scale: 0
-              }}
-              animate={{ 
-                cx: [from.x, to.x],
-                cy: [from.y, to.y],
-                opacity: [0, 1, 1, 0],
-                scale: [0.5, 1, 1, 0.5]
-              }}
-              transition={{ 
-                duration: 4, 
-                delay: i * 0.6,
-                repeat: Infinity,
-                ease: "linear"
-              }}
-            />
-          );
-        })}
+          {/* Marker Data Centers */}
+          {markers.map((marker, i) => (
+            <Marker key={marker.name} coordinates={marker.coordinates}>
+              <g>
+                {/* Glow animato */}
+                <motion.circle
+                  r={10}
+                  fill="#3b82f6"
+                  opacity={0.3}
+                  animate={{ 
+                    r: [8, 14, 8],
+                    opacity: [0.4, 0.2, 0.4]
+                  }}
+                  transition={{ 
+                    duration: 2.5, 
+                    delay: i * 0.1,
+                    repeat: Infinity,
+                    ease: "easeInOut"
+                  }}
+                />
+                {/* Core */}
+                <circle
+                  r={4}
+                  fill="#2563eb"
+                  stroke="white"
+                  strokeWidth={2}
+                />
+              </g>
+            </Marker>
+          ))}
+        </ComposableMap>
+      </div>
 
-        {/* Location points */}
-        {locations.map((loc, index) => (
-          <g key={loc.id}>
-            {/* Glow effect animato */}
-            <motion.circle
-              cx={loc.x}
-              cy={loc.y}
-              r="15"
-              fill="#3b82f6"
-              opacity="0.15"
-              animate={{ 
-                r: [12, 20, 12],
-                opacity: [0.2, 0.1, 0.2]
-              }}
-              transition={{ 
-                duration: 3, 
-                delay: index * 0.2,
-                repeat: Infinity,
-                ease: "easeInOut"
-              }}
-            />
-            {/* Core */}
-            <circle
-              cx={loc.x}
-              cy={loc.y}
-              r="6"
-              fill="#3b82f6"
-            />
-            {/* Inner highlight */}
-            <circle
-              cx={loc.x}
-              cy={loc.y}
-              r="3"
-              fill="#60a5fa"
-            />
-          </g>
-        ))}
-      </svg>
+      {/* Pacchetti di dati animati - cerchi che si muovono sulle connessioni */}
+      <div className="absolute inset-0">
+        <ComposableMap
+          projection="geoMercator"
+          projectionConfig={{
+            scale: 140,
+            center: [10, 30]
+          }}
+          style={{
+            width: '100%',
+            height: '100%',
+          }}
+        >
+          {connections.slice(0, 8).map((conn, i) => {
+            const from = markers[conn.from];
+            const to = markers[conn.to];
+            
+            // Calcola punto medio per l'animazione
+            const midX = (from.coordinates[0] + to.coordinates[0]) / 2;
+            const midY = (from.coordinates[1] + to.coordinates[1]) / 2;
+            
+            return (
+              <Marker
+                key={`packet-${i}`}
+                coordinates={[midX, midY]}
+              >
+                <motion.circle
+                  r={5}
+                  fill="#3b82f6"
+                  initial={{ 
+                    cx: from.coordinates[0] - midX, 
+                    cy: from.coordinates[1] - midY,
+                    opacity: 0 
+                  }}
+                  animate={{ 
+                    cx: [from.coordinates[0] - midX, to.coordinates[0] - midX],
+                    cy: [from.coordinates[1] - midY, to.coordinates[1] - midY],
+                    opacity: [0, 1, 1, 0]
+                  }}
+                  transition={{ 
+                    duration: 3, 
+                    delay: i * 0.5,
+                    repeat: Infinity,
+                    ease: "linear"
+                  }}
+                />
+              </Marker>
+            );
+          })}
+        </ComposableMap>
+      </div>
 
-      {/* Overlay gradient per leggibilità testo */}
-      <div className="absolute inset-0 bg-gradient-to-r from-white/80 via-white/40 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-t from-white/60 via-transparent to-white/30" />
+      {/* Overlay per leggibilità testo */}
+      <div className="absolute inset-0 bg-gradient-to-r from-white via-white/60 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-white/40 via-transparent to-white/20" />
     </div>
   );
 };
