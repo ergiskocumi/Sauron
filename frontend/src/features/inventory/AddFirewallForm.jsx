@@ -198,49 +198,56 @@ export const AddFirewallForm = ({ onClose, onSuccess }) => {
                   {showGuide && (
                     <motion.div
                       ref={guideRef}
-                      initial={{ opacity: 0, scale: 0.9, x: -10 }}
-                      animate={{ opacity: 1, scale: 1, x: 0 }}
-                      exit={{ opacity: 0, scale: 0.9, x: -10 }}
+                      initial={{ opacity: 0, x: -30, scale: 0.95 }}
+                      animate={{ 
+                        opacity: 1, 
+                        x: 0, 
+                        scale: 1,
+                        transition: { type: "spring", stiffness: 300, damping: 25 }
+                      }}
+                      exit={{ opacity: 0, x: -20, scale: 0.95, transition: { duration: 0.2 } }}
                       className="absolute z-[200]
                         /* Mobile: sopra il pulsante */
-                        bottom-full right-0 mb-4 
-                        /* Desktop: a destra, centrato verticalmente rispetto al pulsante */
-                        md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:left-[calc(100%+2rem)]
-                        w-[300px] md:w-[380px] bg-white border border-slate-100 rounded-[2rem] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.2)] p-7"
+                        bottom-full right-0 mb-6 
+                        /* Desktop: Distaccato a destra e centrato verticalmente */
+                        md:bottom-auto md:mb-0 md:top-1/2 md:-translate-y-1/2 md:left-[calc(100%+5.5rem)]
+                        w-[320px] md:w-[420px] bg-white border border-slate-100 rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.15)] p-10"
                     >
-                      {/* Triangle Tail (Desktop only) */}
-                      <div className="hidden md:block absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-l border-t border-slate-100 rotate-[-45deg]" />
+                      {/* Triangle Tail (Desktop only) - Più distaccato */}
+                      <div className="hidden md:block absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 bg-white border-l border-t border-slate-100 rotate-[-45deg]" />
                       
-                      <div className="flex items-center gap-3 mb-5">
-                        <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-100/50">
-                          <HelpCircle size={20} />
+                      <div className="flex items-center gap-4 mb-8">
+                        <div className="p-3.5 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-100">
+                          <HelpCircle size={26} />
                         </div>
                         <div>
-                          <h4 className="text-lg font-bold text-slate-900 leading-tight">
+                          <h4 className="text-xl font-bold text-slate-900 leading-tight">
                             Guida: API Token
                           </h4>
-                          <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Procedura FortiGate</p>
+                          <p className="text-[11px] font-black text-blue-500/50 uppercase tracking-[0.2em]">FortiGate Integration</p>
                         </div>
                       </div>
 
-                      <ol className="space-y-3.5">
+                      <ol className="space-y-5">
                         {TOKEN_GUIDE_STEPS.map((step, idx) => (
-                          <li key={idx} className="group flex gap-4 text-[13px] text-slate-600 items-start leading-snug">
-                            <span className="flex-shrink-0 w-7 h-7 bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white rounded-lg flex items-center justify-center font-bold text-xs transition-all duration-200 mt-0.5 border border-blue-100/50">
+                          <li key={idx} className="group flex gap-5 text-[14px] text-slate-500 items-start leading-relaxed">
+                            <span className="flex-shrink-0 w-8 h-8 bg-slate-50 text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:scale-110 rounded-xl flex items-center justify-center font-bold text-xs transition-all duration-300 mt-0.5 border border-slate-100 group-hover:border-blue-600 group-hover:shadow-lg group-hover:shadow-blue-200">
                               {idx + 1}
                             </span>
-                            <span className="group-hover:text-blue-700 transition-colors duration-200 font-medium pt-1">
+                            <span className="group-hover:text-slate-900 transition-colors duration-300 font-medium pt-1">
                               {step}
                             </span>
                           </li>
                         ))}
                       </ol>
 
-                      <div className="mt-6 pt-5 border-t border-slate-100">
-                        <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                          <AlertCircle size={16} className="text-blue-500 flex-shrink-0" />
-                          <p className="text-[11px] text-slate-500 leading-normal font-medium">
-                            Verifica la connettività tra i dispositivi prima di salvare.
+                      <div className="mt-10 pt-8 border-t border-slate-50">
+                        <div className="flex items-center gap-4 bg-blue-50/50 p-5 rounded-3xl border border-blue-100/50">
+                          <div className="bg-blue-600 p-1.5 rounded-lg text-white">
+                            <AlertCircle size={14} />
+                          </div>
+                          <p className="text-[11px] text-blue-950 leading-normal font-black">
+                            Nota: Verifica la rotta tra Sauron e il firewall prima di procedere.
                           </p>
                         </div>
                       </div>
