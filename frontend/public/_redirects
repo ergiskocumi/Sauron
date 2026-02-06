@@ -1,0 +1,7 @@
+# Netlify redirects - SPA fallback
+
+# Tutte le route vengono servite da index.html (Single Page Application)
+/*    /index.html   200
+
+# Redirect HTTPS
+http://*  https://:splat  301!

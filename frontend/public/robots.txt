@@ -1,0 +1,18 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://sauron.local/sitemap.xml
+
+# Crawl-delay per rispettare il server
+Crawl-delay: 1
+
+# Disallow paths che non devono essere indicizzati
+Disallow: /api/
+Disallow: /internal/
+Disallow: /*?*token=
+Disallow: /*?*api_key=
+
+# Allow specifici
+Allow: /assets/
+Allow: /sauron-eye.svg
