@@ -114,15 +114,19 @@ class FirewallConfigPublic(BaseModel):
     host: str
     entry_vdom: str
     enabled: bool
+    vdoms: List[str] = Field(default_factory=list, description="Lista VDOM rilevati dallo snapshot")
+    status_scan: Optional[bool] = Field(None, description="Esito ultimo scan")
 
     @classmethod
-    def from_config(cls, config: FirewallConfig) -> "FirewallConfigPublic":
-        """Converte FirewallConfig in versione pubblica."""
+    def from_config(cls, config: FirewallConfig, vdoms: List[str] = None, status_scan: bool = None) -> "FirewallConfigPublic":
+        """Converte FirewallConfig in versione pubblica con dati opzionali dallo snapshot."""
         return cls(
             id=config.id,
             host=config.host,
             entry_vdom=config.entry_vdom,
             enabled=config.enabled,
+            vdoms=vdoms or [],
+            status_scan=status_scan
         )
 
 
@@ -287,23 +291,33 @@ async def root():
 @app.get("/api/inventory", response_model=List[FirewallConfigPublic])
 async def get_inventory():
     """
-    Restituisce la lista dei firewall dall'inventory.json.
-
-    IMPORTANTE: Il campo 'token' viene oscurato per sicurezza.
-
-    Returns:
-        Lista di firewall configurati
-
-    Raises:
-        404: Se inventory.json non esiste
-        500: Se inventory.json non è valido
+    Restituisce la lista dei firewall dall'inventory.json arricchita con i dati dello snapshot.
     """
     try:
         loader = InventoryLoader("inventory.json")
         configs = loader.load()
 
-        # Converti in versione pubblica (senza token)
-        return [FirewallConfigPublic.from_config(cfg) for cfg in configs]
+        # Prova a caricare lo snapshot per arricchire i dati
+        vdom_map = {}
+        status_map = {}
+        if snapshot_repository.exists(DEFAULT_SNAPSHOT_PATH):
+            try:
+                snap = snapshot_repository.load(DEFAULT_SNAPSHOT_PATH)
+                for fw in snap.firewalls_metadata:
+                    vdom_map[fw.device_id] = fw.vdoms
+                    status_map[fw.device_id] = fw.scan_success
+            except Exception as e:
+                logger.warning(f"Could not enrich inventory from snapshot: {e}")
+
+        # Converti in versione pubblica arricchita
+        return [
+            FirewallConfigPublic.from_config(
+                cfg, 
+                vdoms=vdom_map.get(cfg.id),
+                status_scan=status_map.get(cfg.id)
+            ) 
+            for cfg in configs
+        ]
 
     except InventoryError as e:
         logger.error(f"Inventory error: {e}")

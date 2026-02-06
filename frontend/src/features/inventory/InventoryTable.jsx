@@ -34,7 +34,8 @@ import {
 import { Badge } from '../../components/ui/Badge';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Alert } from '../../components/ui/Alert';
-import { RefreshCw, Server, Globe, Shield, Copy, Check, ExternalLink, Plus } from 'lucide-react';
+import { RefreshCw, Server, Globe, Shield, Copy, Check, ExternalLink, Plus, List } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { AddFirewallForm } from './AddFirewallForm';
 
@@ -172,10 +173,43 @@ export const InventoryTable = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-400">
-                        <Shield size={14} />
+                      <div className="relative group/vdom">
+                        <div className="flex items-center gap-2 bg-indigo-50/50 px-2.5 py-1 rounded-xl border border-indigo-100 group-hover/vdom:bg-indigo-600 group-hover/vdom:text-white transition-all cursor-help shadow-sm">
+                          <Shield size={14} className="text-indigo-400 group-hover/vdom:text-white" />
+                          <span className="text-indigo-700 group-hover/vdom:text-white font-black text-xs">
+                            {firewall.vdoms?.length || 1} V-DOM
+                          </span>
+                        </div>
+
+                        {/* VDOM Popover Table */}
+                        <AnimatePresence>
+                          {firewall.vdoms?.length > 0 && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                              whileHover={{ opacity: 1, y: 0, scale: 1 }}
+                              className="absolute bottom-full left-0 mb-3 w-48 bg-white border border-slate-100 rounded-2xl shadow-2xl opacity-0 group-hover/vdom:opacity-100 pointer-events-none group-hover/vdom:pointer-events-auto z-50 overflow-hidden"
+                            >
+                              <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center gap-2">
+                                <List size={12} className="text-blue-600" />
+                                <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Lista VDOM</span>
+                              </div>
+                              <div className="max-h-40 overflow-y-auto scrollbar-hide">
+                                {firewall.vdoms.map((vdom, idx) => (
+                                  <div 
+                                    key={idx} 
+                                    className="px-4 py-2 text-[11px] font-bold text-slate-600 border-b border-slate-50 last:border-none flex items-center justify-between hover:bg-indigo-50/50 transition-colors"
+                                  >
+                                    <span>{vdom}</span>
+                                    {vdom === firewall.entry_vdom && (
+                                      <span className="text-[8px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-md font-black uppercase">Default</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </div>
-                      <span className="text-slate-600 font-bold text-sm tracking-tight">{firewall.entry_vdom}</span>
                     </div>
                   </TableCell>
                   <TableCell>
