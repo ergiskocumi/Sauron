@@ -916,39 +916,44 @@ export const FirewallDetailPage = ({ firewallId, onBack }) => {
       {currentVdom && (
         <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
           {/* Tab Bar */}
-          <div className="border-b border-slate-200 px-6 flex items-center gap-1">
-            {TAB_CONFIG.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                className={cn(
-                  "relative px-5 py-4 text-sm font-bold transition-colors flex items-center gap-2",
-                  activeTab === id
-                    ? "text-blue-600"
-                    : "text-slate-400 hover:text-slate-600"
-                )}
-              >
-                <Icon size={16} />
-                {label}
-                {activeTab === id && (
-                  <motion.div
-                    layoutId="activeDetailTab"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-t-full"
-                  />
-                )}
-              </button>
-            ))}
-
-            <div className="ml-auto flex items-center gap-2 py-2">
+          <div className="border-b border-slate-200 px-4 md:px-6 py-2 flex flex-col md:flex-row md:items-center md:gap-3 gap-2 bg-white/80 backdrop-blur sticky top-0 z-10">
+            <div className="flex items-center gap-2">
               <ChevronRight size={14} className="text-slate-300" />
               <span className="text-[10px] font-black text-violet-600 uppercase tracking-widest">
                 {currentVdom.name}
               </span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                VDOM selezionato
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+              {TAB_CONFIG.map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  className={cn(
+                    "relative px-4 py-2 text-sm font-bold transition-all flex items-center gap-2 rounded-xl whitespace-nowrap",
+                    activeTab === id
+                      ? "text-blue-600 bg-blue-50"
+                      : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                  )}
+                >
+                  <Icon size={16} />
+                  {label}
+                  {activeTab === id && (
+                    <motion.div
+                      layoutId="activeDetailTab"
+                      className="absolute bottom-0 left-2 right-2 h-0.5 bg-blue-600 rounded-t-full"
+                    />
+                  )}
+                </button>
+              ))}
             </div>
           </div>
 
           {/* Tab Content */}
-          <div className="p-6">
+          <div className="p-4 md:p-6">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
