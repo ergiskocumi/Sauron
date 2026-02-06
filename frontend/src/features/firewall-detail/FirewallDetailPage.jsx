@@ -253,13 +253,15 @@ const StatPill = ({ label, value, icon: Icon, color }) => {
 
 const VdomSelector = memo(({ vdoms, selectedVdom, onSelect }) => {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4">
       {vdoms.map((vdom) => {
         const isSelected = selectedVdom === vdom.name;
         const totalIfaces = vdom.interfaces?.length || 0;
         const upIfaces = vdom.interfaces?.filter(i => i.is_up).length || 0;
         const allUp = totalIfaces > 0 && upIfaces === totalIfaces;
         const someDown = totalIfaces > 0 && upIfaces < totalIfaces;
+        const healthLabel = allUp ? 'Healthy' : someDown ? 'Degraded' : 'Down';
+        const progress = totalIfaces > 0 ? Math.round((upIfaces / totalIfaces) * 100) : 0;
 
         return (
           <motion.button
@@ -268,10 +270,10 @@ const VdomSelector = memo(({ vdoms, selectedVdom, onSelect }) => {
             whileHover={{ y: -4 }}
             whileTap={{ scale: 0.97 }}
             className={cn(
-              "relative p-5 rounded-2xl border-2 text-left transition-all duration-300",
+              "relative p-5 rounded-2xl border-2 text-left transition-all duration-300 min-h-[170px]",
               isSelected
-                ? "bg-blue-600 border-blue-600 text-white shadow-xl shadow-blue-500/30"
-                : "bg-white border-slate-200 hover:border-blue-300 hover:shadow-lg shadow-sm"
+                ? "bg-gradient-to-br from-blue-600 to-blue-700 border-blue-600 text-white shadow-xl shadow-blue-500/30"
+                : "bg-white border-slate-200 hover:border-blue-300 hover:shadow-lg shadow-slate-200/60"
             )}
           >
             {/* Status dot */}
@@ -305,6 +307,34 @@ const VdomSelector = memo(({ vdoms, selectedVdom, onSelect }) => {
                   VDOM
                 </div>
               </div>
+            </div>
+
+            {/* Health label */}
+            <div className="flex items-center gap-2 mb-2">
+              <span className={cn(
+                "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full",
+                allUp && (isSelected ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-700"),
+                someDown && (isSelected ? "bg-white/20 text-white" : "bg-amber-50 text-amber-700"),
+                !allUp && !someDown && (isSelected ? "bg-white/20 text-white" : "bg-red-50 text-red-700")
+              )}>
+                {healthLabel}
+              </span>
+              <span className={cn("text-[10px] font-bold", isSelected ? "text-blue-100" : "text-slate-500")}>
+                {progress}% up
+              </span>
+            </div>
+
+            {/* Progress bar */}
+            <div className={cn("h-1.5 w-full rounded-full overflow-hidden", isSelected ? "bg-white/20" : "bg-slate-100")}>
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-500",
+                  allUp && (isSelected ? "bg-white" : "bg-emerald-500"),
+                  someDown && (isSelected ? "bg-white" : "bg-amber-500"),
+                  !allUp && !someDown && (isSelected ? "bg-white" : "bg-red-500")
+                )}
+                style={{ width: `${progress}%` }}
+              />
             </div>
 
             <div className="flex items-center gap-3">
