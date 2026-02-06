@@ -139,7 +139,9 @@ export const InventoryTable = () => {
                         {/* Tooltip Hover */}
                         <div className="absolute -top-10 left-1/2 -translate-x-1/2 scale-95 opacity-0 group-hover/ip:opacity-100 group-hover/ip:scale-100 pointer-events-none transition-all duration-300 z-10">
                           <div className="bg-white border border-slate-100 px-3 py-1.5 rounded-xl shadow-2xl shadow-blue-500/10 flex items-center gap-2">
-                            <span className="text-[10px] font-black text-blue-600 whitespace-nowrap tracking-tighter">VAI AL FW</span>
+                            <span className="text-[10px] font-black text-blue-600 whitespace-nowrap tracking-tighter">
+                              Vai al FW - {firewall.id}
+                            </span>
                             <ExternalLink size={10} className="text-blue-400" />
                           </div>
                           {/* Freccetta Tooltip */}
