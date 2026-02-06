@@ -184,36 +184,45 @@ export const InventoryTable = () => {
                         {/* VDOM Popover "Cloud" Style */}
                         {firewall.vdoms?.length > 0 && (
                           <div
-                            className="absolute bottom-full left-0 mb-4 w-72 bg-white border border-slate-100 rounded-[2rem] shadow-[0_30px_70px_rgba(0,0,0,0.15)] opacity-0 group-hover/vdom:opacity-100 translate-y-2 group-hover/vdom:translate-y-0 scale-95 group-hover/vdom:scale-100 pointer-events-none group-hover/vdom:pointer-events-auto transition-all duration-200 z-50"
+                            className="absolute bottom-full left-0 pb-6 -mb-4 w-72 opacity-0 group-hover/vdom:opacity-100 translate-y-2 group-hover/vdom:translate-y-0 scale-95 group-hover/vdom:scale-100 pointer-events-none group-hover/vdom:pointer-events-auto transition-all duration-300 ease-out z-50"
                           >
+                            <div className="bg-white border border-slate-200 rounded-[2rem] shadow-[0_20px_70px_rgba(30,41,59,0.3)] relative">
                               {/* Header Popover */}
-                              <div className="bg-indigo-600 px-6 py-4 flex items-center justify-between rounded-t-[2rem]">
+                              <div className="bg-slate-900 px-6 py-5 flex items-center justify-between rounded-t-[2rem]">
                                 <div className="flex items-center gap-3">
-                                  <div className="bg-white/20 p-2 rounded-xl">
+                                  <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-500/30">
                                     <List size={16} className="text-white" />
                                   </div>
                                   <div>
-                                    <span className="block text-xs font-black text-white uppercase tracking-widest">Domini Virtuali</span>
-                                    <span className="text-[10px] text-indigo-100 font-bold">{firewall.vdoms.length} segmenti attivi</span>
+                                    <span className="block text-[11px] font-black text-white uppercase tracking-[0.15em]">Domini Virtuali</span>
+                                    <span className="text-[10px] text-slate-400 font-bold">{firewall.vdoms.length} segmenti attivi</span>
                                   </div>
                                 </div>
                               </div>
 
                               {/* Lista VDOM */}
-                              <div className="max-h-64 overflow-y-auto scrollbar-hide py-3">
+                              <div className="max-h-64 overflow-y-auto py-2 custom-scrollbar">
                                 {firewall.vdoms.map((vdom, idx) => (
                                   <div 
                                     key={idx} 
-                                    className="px-6 py-3 group/item flex items-center justify-between hover:bg-slate-50 transition-colors"
+                                    className="px-6 py-3.5 group/item flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-none"
                                   >
                                     <div className="flex items-center gap-3">
-                                      <div className={`w-2 h-2 rounded-full ${vdom === firewall.entry_vdom ? 'bg-blue-500 animate-pulse' : 'bg-slate-200 group-hover/item:bg-indigo-400'}`} />
-                                      <span className={`text-[13px] font-bold ${vdom === firewall.entry_vdom ? 'text-blue-600' : 'text-slate-600 group-hover/item:text-slate-900'}`}>
+                                      <div className={cn(
+                                        "w-2 h-2 rounded-full transition-all duration-300",
+                                        vdom === firewall.entry_vdom 
+                                          ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)] animate-pulse' 
+                                          : 'bg-slate-200 group-hover/item:bg-blue-400'
+                                      )} />
+                                      <span className={cn(
+                                        "text-[13px] font-bold transition-colors",
+                                        vdom === firewall.entry_vdom ? 'text-blue-600' : 'text-slate-600 group-hover/item:text-slate-900'
+                                      )}>
                                         {vdom}
                                       </span>
                                     </div>
                                     {vdom === firewall.entry_vdom && (
-                                      <span className="text-[9px] bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full font-black uppercase border border-blue-100 shadow-sm shadow-blue-500/5">
+                                      <span className="text-[9px] bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full font-black uppercase border border-blue-100">
                                         Default
                                       </span>
                                     )}
@@ -222,14 +231,15 @@ export const InventoryTable = () => {
                               </div>
 
                               {/* Footer Popover */}
-                              <div className="bg-slate-50/50 px-6 py-3 border-t border-slate-100 rounded-b-[2rem]">
-                                <p className="text-[10px] text-slate-400 font-bold italic">
-                                  * Rilevato dallo snapshot di rete
+                              <div className="bg-slate-50/80 px-6 py-4 border-t border-slate-100 rounded-b-[2rem]">
+                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest italic text-center">
+                                  * Snapshot Intelligence
                                 </p>
                               </div>
 
                               {/* Triangolino */}
-                              <div className="absolute -bottom-1 left-8 w-3 h-3 bg-white border-b border-r border-slate-100 rotate-45" />
+                              <div className="absolute -bottom-1.5 left-8 w-4 h-4 bg-slate-50 border-b border-r border-slate-100 rotate-45" />
+                            </div>
                           </div>
                         )}
                       </div>
