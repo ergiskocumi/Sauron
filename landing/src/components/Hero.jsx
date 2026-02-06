@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
-import { Shield, Network, Activity, ArrowRight, Play, CheckCircle2 } from 'lucide-react';
+import { Shield, Network, Activity, ArrowRight, Play, CheckCircle2, Server, RefreshCw } from 'lucide-react';
+import WorldMapBackground from './WorldMapBackground';
 
 const Hero = () => {
   const containerVariants = {
@@ -8,7 +9,7 @@ const Hero = () => {
       opacity: 1,
       transition: { 
         staggerChildren: 0.12,
-        delayChildren: 0.1
+        delayChildren: 0.3
       }
     }
   };
@@ -29,34 +30,9 @@ const Hero = () => {
   ];
 
   return (
-    <section className="relative min-h-screen flex items-center pt-20 overflow-hidden bg-gradient-to-b from-white via-slate-50 to-slate-100">
-      {/* Subtle background elements */}
-      <div className="absolute inset-0 bg-grid-light opacity-40" />
-      
-      {/* Animated gradient orbs */}
-      <div className="absolute top-20 right-0 w-[600px] h-[600px] bg-blue-200/30 rounded-full blur-3xl animate-pulse-soft" />
-      <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-purple-200/30 rounded-full blur-3xl animate-pulse-soft" style={{ animationDelay: '2s' }} />
-      
-      {/* Floating decorative elements */}
-      <motion.div 
-        className="absolute top-40 right-20 hidden lg:block"
-        animate={{ y: [0, -15, 0], rotate: [0, 5, 0] }}
-        transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-      >
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-xl shadow-blue-500/20 flex items-center justify-center">
-          <Network className="w-8 h-8 text-white" />
-        </div>
-      </motion.div>
-
-      <motion.div 
-        className="absolute bottom-40 right-40 hidden lg:block"
-        animate={{ y: [0, 15, 0], rotate: [0, -5, 0] }}
-        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-      >
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 shadow-xl shadow-purple-500/20 flex items-center justify-center">
-          <Activity className="w-7 h-7 text-white" />
-        </div>
-      </motion.div>
+    <section className="relative min-h-screen flex items-center pt-20 overflow-hidden">
+      {/* World Map Background */}
+      <WorldMapBackground />
 
       <div className="relative max-w-7xl mx-auto px-6 py-20">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
@@ -65,10 +41,11 @@ const Hero = () => {
             variants={containerVariants}
             initial="hidden"
             animate="visible"
+            className="relative z-10"
           >
             {/* Badge */}
             <motion.div variants={itemVariants} className="mb-6">
-              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 border border-blue-100 text-sm font-medium text-blue-700">
+              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white shadow-lg border border-blue-100 text-sm font-medium text-blue-700">
                 <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
                 Network Intelligence Platform
               </span>
@@ -90,8 +67,7 @@ const Hero = () => {
               variants={itemVariants}
               className="text-xl text-slate-600 mb-8 max-w-lg leading-relaxed"
             >
-              Automatically discover, map, and visualize your FortiGate infrastructure. 
-              Simulate packet paths and troubleshoot issues in seconds, not hours.
+              Automatically discover, map, and visualize your FortiGate infrastructure across all your global locations.
             </motion.p>
 
             {/* Benefits list */}
@@ -118,7 +94,7 @@ const Hero = () => {
               </a>
               <a 
                 href="#features"
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-2xl font-bold text-lg transition-all hover:scale-105 hover:border-slate-300"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-2xl font-bold text-lg transition-all hover:scale-105 hover:border-slate-300 shadow-lg"
               >
                 <Play className="w-5 h-5" />
                 See How It Works
@@ -128,23 +104,23 @@ const Hero = () => {
             {/* Trust indicators */}
             <motion.div 
               variants={itemVariants}
-              className="mt-12 pt-8 border-t border-slate-200"
+              className="mt-12 pt-8 border-t border-slate-200/60"
             >
-              <p className="text-sm text-slate-500 mb-4">Trusted by network engineers at</p>
+              <p className="text-sm text-slate-500 mb-4">Trusted by network engineers worldwide</p>
               <div className="flex items-center gap-8 opacity-50">
-                {['Enterprise Co', 'TechCorp', 'NetSystems', 'DataFlow'].map((company, i) => (
+                {['Enterprise', 'TechCorp', 'NetSystems', 'DataFlow'].map((company, i) => (
                   <span key={i} className="text-lg font-bold text-slate-400">{company}</span>
                 ))}
               </div>
             </motion.div>
           </motion.div>
 
-          {/* Right - App Preview */}
+          {/* Right - App Preview (ripristinato) */}
           <motion.div
             initial={{ opacity: 0, x: 50, scale: 0.95 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.3 }}
-            className="relative"
+            className="relative z-10"
           >
             {/* Main app window */}
             <div className="relative bg-white rounded-3xl shadow-2xl shadow-slate-300/50 border border-slate-200 overflow-hidden">
