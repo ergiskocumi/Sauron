@@ -24,7 +24,7 @@ from domain.ports import (
     ConnectionError,
     AuthenticationError,
 )
-from domain.models import Route, NetworkInterface, Vdom
+from domain.models import Route, NetworkInterface, Vdom, SystemResource, SystemStatus, FirewallPolicy, AddressObject
 from core.config import get_settings
 
 
@@ -267,6 +267,69 @@ class FortiGateClient(FirewallRepository):
 
         return []
 
+    async def _make_request_raw(
+        self,
+        endpoint: str,
+        params: Optional[Dict[str, Any]] = None,
+        method: str = "GET",
+    ) -> Dict[str, Any]:
+        """
+        Esegue una richiesta HTTP e restituisce il dict 'results' raw.
+
+        Utile per endpoint che restituiscono dati strutturati (non liste),
+        come /monitor/system/resource e /monitor/system/status.
+
+        Returns:
+            Dict raw dalla chiave 'results' della risposta
+        """
+        await self._ensure_connected()
+
+        full_url = f"{self.base_url}{endpoint}"
+        last_error: Optional[Exception] = None
+
+        for attempt in range(self._max_retries + 1):
+            try:
+                response = await self._client.request(
+                    method=method,
+                    url=full_url,
+                    params=params,
+                )
+
+                if response.status_code == 401:
+                    raise AuthenticationError(
+                        f"Token API non valido o scaduto per {self.ip_address}"
+                    )
+                if response.status_code == 403:
+                    raise AuthenticationError(
+                        f"Permessi insufficienti per {endpoint} su {self.ip_address}"
+                    )
+
+                response.raise_for_status()
+                data = response.json()
+                return data.get("results", {})
+
+            except AuthenticationError:
+                raise
+
+            except httpx.ConnectError as e:
+                last_error = ConnectionError(f"Impossibile connettersi a {self.ip_address}: {e}")
+            except httpx.TimeoutException as e:
+                last_error = ConnectionError(f"Timeout connessione a {self.ip_address}: {e}")
+            except httpx.HTTPStatusError as e:
+                last_error = ConnectionError(f"HTTP {e.response.status_code} da {self.ip_address}: {e}")
+                if 400 <= e.response.status_code < 500:
+                    break
+            except Exception as e:
+                last_error = ConnectionError(f"Errore imprevisto: {e}")
+
+            if attempt < self._max_retries:
+                wait_time = 2 ** attempt
+                await asyncio.sleep(wait_time)
+
+        if last_error:
+            raise last_error
+        return {}
+
     # --- IMPLEMENTAZIONE CONTRATTO FirewallRepository ---
 
     async def get_routing_table(self, vdom: str = "root") -> List[Route]:
@@ -399,6 +462,95 @@ class FortiGateClient(FirewallRepository):
         )
 
         return vdoms
+
+    # --- NUOVI METODI PER DETTAGLIO FIREWALL ---
+
+    async def get_system_resources(self) -> SystemResource:
+        """
+        Recupera le risorse di sistema live (CPU, RAM, sessioni).
+
+        Endpoint: GET /monitor/system/resource
+        """
+        raw = await self._make_request_raw("/monitor/system/resource")
+
+        try:
+            return SystemResource(
+                cpu_usage=raw.get("cpu", 0),
+                memory_usage=raw.get("mem", 0),
+                memory_total=raw.get("mem_total", 0),
+                memory_used=raw.get("mem_used", 0),
+                session_count=raw.get("session", {}).get("total", 0) if isinstance(raw.get("session"), dict) else raw.get("session", 0),
+                setup_rate=raw.get("setuprate", 0),
+            )
+        except Exception as e:
+            logger.warning(f"Failed to parse system resources: {e}")
+            return SystemResource()
+
+    async def get_system_status(self) -> SystemStatus:
+        """
+        Recupera lo stato del sistema (hostname, modello, firmware).
+
+        Endpoint: GET /monitor/system/status
+        """
+        raw = await self._make_request_raw("/monitor/system/status")
+
+        try:
+            return SystemStatus.model_validate(raw)
+        except ValidationError as e:
+            logger.warning(f"Failed to parse system status: {e}")
+            return SystemStatus()
+
+    async def get_firewall_policies(self, vdom: str = "root") -> List[FirewallPolicy]:
+        """
+        Recupera le firewall policies per un dato VDOM.
+
+        Args:
+            vdom: Virtual Domain da interrogare
+
+        Returns:
+            Lista di FirewallPolicy validate
+        """
+        raw_data = await self._make_request(
+            "/cmdb/firewall/policy",
+            params={"vdom": vdom},
+        )
+
+        policies: List[FirewallPolicy] = []
+        for item in raw_data:
+            try:
+                policy = FirewallPolicy.model_validate(item)
+                policies.append(policy)
+            except ValidationError as e:
+                logger.debug(f"Policy validation failed: {e.error_count()} errors")
+
+        logger.info(f"Retrieved {len(policies)} policies from VDOM '{vdom}'")
+        return policies
+
+    async def get_address_objects(self, vdom: str = "root") -> List[AddressObject]:
+        """
+        Recupera gli oggetti indirizzo per un dato VDOM.
+
+        Args:
+            vdom: Virtual Domain da interrogare
+
+        Returns:
+            Lista di AddressObject validate
+        """
+        raw_data = await self._make_request(
+            "/cmdb/firewall/address",
+            params={"vdom": vdom},
+        )
+
+        objects: List[AddressObject] = []
+        for item in raw_data:
+            try:
+                obj = AddressObject.model_validate(item)
+                objects.append(obj)
+            except ValidationError as e:
+                logger.debug(f"Address object validation failed: {e.error_count()} errors")
+
+        logger.info(f"Retrieved {len(objects)} address objects from VDOM '{vdom}'")
+        return objects
 
     def __repr__(self) -> str:
         """Rappresentazione stringa del client."""

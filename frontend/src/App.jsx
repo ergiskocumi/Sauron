@@ -9,14 +9,24 @@ import { useHeartbeat } from './hooks/useHeartbeat';
 import { useInventory } from './hooks/useInventory';
 import { Activity, RefreshCw, Server, Info, Zap } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { FirewallDetailPage } from './features/firewall-detail/FirewallDetailPage';
 import { startScan as scanNetwork } from './services/scanService';
 import { TABS } from './constants';
 
 function App() {
   const [activeTab, setActiveTab] = useState(TABS.INVENTORY);
+  const [selectedFirewallId, setSelectedFirewallId] = useState(null);
   const { inventory } = useInventory();
   const heartbeatStatuses = useHeartbeat(inventory);
   const [isScanning, setIsScanning] = useState(false);
+
+  // Reset firewall detail when switching away from inventory
+  const handleSetActiveTab = useCallback((tab) => {
+    setActiveTab(tab);
+    if (tab !== TABS.INVENTORY) {
+      setSelectedFirewallId(null);
+    }
+  }, []);
 
   const onlineCount = useMemo(
     () => inventory.filter(f => heartbeatStatuses[f.id] === 'online').length,
@@ -65,7 +75,7 @@ function App() {
         }}
       />
       
-      <Layout activeTab={activeTab} setActiveTab={setActiveTab}>
+      <Layout activeTab={activeTab} setActiveTab={handleSetActiveTab}>
         <div className="w-full flex flex-col min-h-0">
           <AnimatePresence mode="wait">
             <motion.div
@@ -89,7 +99,9 @@ function App() {
                     </div>
                   </div>
                   <h1 className="text-4xl font-black text-slate-900 tracking-tight">
-                    {activeTab === TABS.INVENTORY ? 'Inventory Manager' : activeTab === TABS.MAP ? 'Network Topology' : 'System Simulation'}
+                    {activeTab === TABS.INVENTORY
+                      ? (selectedFirewallId ? 'Firewall Detail' : 'Inventory Manager')
+                      : activeTab === TABS.MAP ? 'Network Topology' : 'System Simulation'}
                   </h1>
                 </div>
                 
@@ -112,39 +124,46 @@ function App() {
               <div className="flex-1 min-h-0">
                 {activeTab === TABS.INVENTORY ? (
                   <ErrorBoundary>
-                    <div className="flex flex-col gap-8">
-                      {/* Status Pills */}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <StatusCard
-                          label="Online Devices"
-                          value={onlineCount}
-                          total={inventory.length}
-                          color="green"
-                          icon={<Server size={18} />}
-                        />
-                        <StatusCard
-                          label="Critical Alerts"
-                          value={offlineCount}
-                          total={inventory.length}
-                          color="red"
-                          icon={<Activity size={18} />}
-                        />
-                        <StatusCard
-                          label="Sync Success"
-                          value="98%"
-                          color="blue"
-                          icon={<RefreshCw size={18} />}
-                        />
-                        <StatusCard
-                          label="System Info"
-                          value="v0.1.0"
-                          color="slate"
-                          icon={<Info size={18} />}
-                        />
-                      </div>
+                    {selectedFirewallId ? (
+                      <FirewallDetailPage
+                        firewallId={selectedFirewallId}
+                        onBack={() => setSelectedFirewallId(null)}
+                      />
+                    ) : (
+                      <div className="flex flex-col gap-8">
+                        {/* Status Pills */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                          <StatusCard
+                            label="Online Devices"
+                            value={onlineCount}
+                            total={inventory.length}
+                            color="green"
+                            icon={<Server size={18} />}
+                          />
+                          <StatusCard
+                            label="Critical Alerts"
+                            value={offlineCount}
+                            total={inventory.length}
+                            color="red"
+                            icon={<Activity size={18} />}
+                          />
+                          <StatusCard
+                            label="Sync Success"
+                            value="98%"
+                            color="blue"
+                            icon={<RefreshCw size={18} />}
+                          />
+                          <StatusCard
+                            label="System Info"
+                            value="v0.1.0"
+                            color="slate"
+                            icon={<Info size={18} />}
+                          />
+                        </div>
 
-                      <InventoryTable />
-                    </div>
+                        <InventoryTable onViewDetail={setSelectedFirewallId} />
+                      </div>
+                    )}
                   </ErrorBoundary>
                 ) : activeTab === TABS.MAP ? (
                   <ErrorBoundary>

@@ -289,3 +289,88 @@ class ScanResult(SauronBaseModel):
     routes_count: int = 0
     interfaces_count: int = 0
     scan_duration_ms: Optional[float] = None
+
+
+class SystemResource(SauronBaseModel):
+    """
+    Risorse di sistema live di un firewall.
+    Mappato dall'endpoint /monitor/system/resource
+    """
+
+    cpu_usage: int = Field(0, description="Percentuale utilizzo CPU")
+    memory_usage: int = Field(0, description="Percentuale utilizzo RAM")
+    memory_total: int = Field(0, description="Memoria totale in KB")
+    memory_used: int = Field(0, description="Memoria usata in KB")
+    session_count: int = Field(0, description="Sessioni attive")
+    setup_rate: int = Field(0, description="Rate di setup sessioni/sec")
+
+
+class SystemStatus(SauronBaseModel):
+    """
+    Stato del sistema di un firewall.
+    Mappato dall'endpoint /monitor/system/status
+    """
+
+    hostname: str = Field("", description="Hostname del firewall")
+    serial: str = Field("", description="Numero seriale")
+    model_name: str = Field("", alias="model-name", description="Nome del modello (es. FortiGate-100F)")
+    firmware_version: str = Field("", alias="version", description="Versione firmware (es. v7.2.8)")
+    uptime: int = Field(0, description="Uptime in secondi")
+
+    @property
+    def uptime_human(self) -> str:
+        """Restituisce l'uptime in formato leggibile."""
+        s = self.uptime
+        days, s = divmod(s, 86400)
+        hours, s = divmod(s, 3600)
+        minutes, _ = divmod(s, 60)
+        if days > 0:
+            return f"{days}d {hours}h {minutes}m"
+        if hours > 0:
+            return f"{hours}h {minutes}m"
+        return f"{minutes}m"
+
+
+class FirewallPolicy(SauronBaseModel):
+    """
+    Policy del firewall.
+    Mappato dall'endpoint /cmdb/firewall/policy
+    """
+
+    policy_id: int = Field(..., alias="policyid", description="ID univoco della policy")
+    name: str = Field("", description="Nome della policy")
+    src_interfaces: list = Field(default_factory=list, alias="srcintf", description="Interfacce sorgente")
+    dst_interfaces: list = Field(default_factory=list, alias="dstintf", description="Interfacce destinazione")
+    src_addresses: list = Field(default_factory=list, alias="srcaddr", description="Indirizzi sorgente")
+    dst_addresses: list = Field(default_factory=list, alias="dstaddr", description="Indirizzi destinazione")
+    services: list = Field(default_factory=list, alias="service", description="Servizi/porte")
+    action: str = Field("deny", description="Azione (accept/deny)")
+    status: str = Field("enable", description="Stato (enable/disable)")
+    log_traffic: str = Field("disable", alias="logtraffic", description="Logging traffico")
+    bytes: int = Field(0, description="Byte totali transitati")
+    hit_count: int = Field(0, alias="hit-count", description="Numero di hit")
+    comments: str = Field("", description="Commenti")
+
+    @field_validator("src_interfaces", "dst_interfaces", "src_addresses", "dst_addresses", "services", mode="before")
+    @classmethod
+    def extract_names(cls, v: Any) -> list:
+        """Estrae i nomi da liste di oggetti FortiGate [{name: ...}]."""
+        if isinstance(v, list):
+            return [item.get("name", str(item)) if isinstance(item, dict) else str(item) for item in v]
+        return []
+
+
+class AddressObject(SauronBaseModel):
+    """
+    Oggetto indirizzo del firewall.
+    Mappato dall'endpoint /cmdb/firewall/address
+    """
+
+    name: str = Field(..., description="Nome dell'oggetto")
+    type: str = Field("ipmask", description="Tipo (ipmask, fqdn, iprange)")
+    subnet: Optional[str] = Field(None, description="Subnet (formato 'IP MASK')")
+    fqdn: Optional[str] = Field(None, description="FQDN (per tipo fqdn)")
+    start_ip: Optional[str] = Field(None, alias="start-ip", description="IP inizio range")
+    end_ip: Optional[str] = Field(None, alias="end-ip", description="IP fine range")
+    associated_interface: Optional[str] = Field(None, alias="associated-interface", description="Interfaccia associata")
+    comment: Optional[str] = Field(None, description="Commento")

@@ -16,7 +16,7 @@
 import { useInventory } from '../../hooks/useInventory';
 import { cn } from '../../lib/utils';
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Card,
   CardHeader,
@@ -32,15 +32,14 @@ import {
   TableCell,
   TableEmptyState,
 } from '../../components/ui/Table';
-import { Badge } from '../../components/ui/Badge';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Alert } from '../../components/ui/Alert';
 import { RefreshCw, Server, Globe, Shield, Copy, Check, ExternalLink, Plus, List, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { AddFirewallForm } from './AddFirewallForm';
 
-export const InventoryTable = () => {
-  const { inventory, loading, error, refetch } = useInventory();
+export const InventoryTable = ({ onViewDetail }) => {
+  const { inventory, loading, error, healthById, healthError, refetch } = useInventory();
   const [copiedId, setCopiedId] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -76,6 +75,28 @@ export const InventoryTable = () => {
       </Card>
     );
   }
+
+  const getHealthStatus = (firewall) => {
+    const health = healthById?.[firewall.id];
+
+    if (!health) {
+      return {
+        label: 'Checking',
+        tone: 'pending',
+        error: healthError || null,
+      };
+    }
+
+    if (health.reachable) {
+      return { label: 'Online', tone: 'success', error: null };
+    }
+
+    if (health.error === 'Disabled') {
+      return { label: 'Disabled', tone: 'disabled', error: null };
+    }
+
+    return { label: 'Offline', tone: 'danger', error: health.error || null };
+  };
 
   return (
     <Card className="overflow-visible border-none bg-white/60 backdrop-blur-md shadow-2xl shadow-slate-200/50">
@@ -122,11 +143,14 @@ export const InventoryTable = () => {
                   <TableHeaderCell className="pr-8 text-right">Status</TableHeaderCell>
                 </TableHeader>
                 <TableBody>
-                  {inventory.map((firewall) => (
-                    <TableRow 
-                      key={firewall.id} 
-                      className="group cursor-default hover:z-30 relative hover:bg-blue-50/40 transition-all duration-300 border-b border-slate-50/50 last:border-none"
-                    >
+                  {inventory.map((firewall) => {
+                    const status = getHealthStatus(firewall);
+
+                    return (
+                      <TableRow 
+                        key={firewall.id} 
+                        className="group cursor-default hover:z-30 relative hover:bg-blue-50/40 transition-all duration-300 border-b border-slate-50/50 last:border-none"
+                      >
                       <TableCell className="pl-8 py-6">
                         <div className="flex items-center gap-5">
                           <div className="w-14 h-14 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:scale-110 group-hover:shadow-xl group-hover:shadow-blue-500/20 transition-all duration-500 shadow-sm">
@@ -248,10 +272,22 @@ export const InventoryTable = () => {
                       </TableCell>
                       <TableCell className="pr-8">
                         <div className="flex items-center justify-end gap-3">
-                          <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-2xl border border-green-100 group-hover:bg-green-500 group-hover:text-white transition-all duration-300">
-                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full group-hover:bg-white animate-pulse" />
+                          <div className={cn(
+                            'flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all duration-300',
+                            status.tone === 'success' && 'bg-green-50 text-green-700 border-green-100 group-hover:bg-green-500 group-hover:text-white',
+                            status.tone === 'danger' && 'bg-red-50 text-red-700 border-red-100 group-hover:bg-red-500 group-hover:text-white',
+                            status.tone === 'disabled' && 'bg-slate-100 text-slate-500 border-slate-200',
+                            status.tone === 'pending' && 'bg-amber-50 text-amber-700 border-amber-100'
+                          )}>
+                            <div className={cn(
+                              'w-1.5 h-1.5 rounded-full animate-pulse',
+                              status.tone === 'success' && 'bg-green-500 group-hover:bg-white',
+                              status.tone === 'danger' && 'bg-red-500 group-hover:bg-white',
+                              status.tone === 'disabled' && 'bg-slate-400',
+                              status.tone === 'pending' && 'bg-amber-500'
+                            )} />
                             <span className="text-[11px] font-black uppercase tracking-widest leading-none">
-                              {firewall.enabled ? 'Live' : 'Off'}
+                              {status.label}
                             </span>
                           </div>
                           
@@ -264,7 +300,10 @@ export const InventoryTable = () => {
                               </div>
                               <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45" />
                             </div>
-                            <button className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-xl border border-transparent hover:border-slate-100 transition-all shadow-hover shadow-blue-500/5 active:scale-90">
+                            <button
+                              onClick={() => onViewDetail?.(firewall.id)}
+                              className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-xl border border-transparent hover:border-slate-100 transition-all shadow-hover shadow-blue-500/5 active:scale-90"
+                            >
                               <Eye size={18} />
                             </button>
                           </div>
@@ -273,32 +312,58 @@ export const InventoryTable = () => {
                             <ExternalLink size={18} />
                           </button>
                         </div>
+                        {status.error && (
+                          <div className="mt-2 text-right text-[10px] text-red-500 font-bold uppercase tracking-widest">
+                            {status.error}
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
 
             {/* MOBILE/TABLET RESPONSIVE VIEW (< XL) */}
             <div className="xl:hidden flex flex-col gap-4 px-6 md:px-8">
-              {inventory.map((firewall) => (
-                <motion.div
-                  key={firewall.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  whileTap={{ scale: 0.99 }}
-                  className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-blue-500/10 hover:border-blue-200 transition-all duration-300 relative group overflow-hidden"
-                >
-                  {/* Status Indicator Absolute Top Right */}
-                  <div className="absolute top-6 right-6">
-                    <div className="flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1.5 rounded-full border border-green-100">
-                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                      <span className="text-[10px] font-black uppercase tracking-widest">
-                        {firewall.enabled ? 'Live' : 'Off'}
-                      </span>
+              {inventory.map((firewall) => {
+                const status = getHealthStatus(firewall);
+
+                return (
+                  <motion.div
+                    key={firewall.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    whileTap={{ scale: 0.99 }}
+                    className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-blue-500/10 hover:border-blue-200 transition-all duration-300 relative group overflow-hidden"
+                  >
+                    {/* Status Indicator Absolute Top Right */}
+                    <div className="absolute top-6 right-6">
+                      <div className={cn(
+                        'flex items-center gap-2 px-3 py-1.5 rounded-full border',
+                        status.tone === 'success' && 'bg-green-50 text-green-700 border-green-100',
+                        status.tone === 'danger' && 'bg-red-50 text-red-700 border-red-100',
+                        status.tone === 'disabled' && 'bg-slate-100 text-slate-500 border-slate-200',
+                        status.tone === 'pending' && 'bg-amber-50 text-amber-700 border-amber-100'
+                      )}>
+                        <div className={cn(
+                          'w-1.5 h-1.5 rounded-full animate-pulse',
+                          status.tone === 'success' && 'bg-green-500',
+                          status.tone === 'danger' && 'bg-red-500',
+                          status.tone === 'disabled' && 'bg-slate-400',
+                          status.tone === 'pending' && 'bg-amber-500'
+                        )} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">
+                          {status.label}
+                        </span>
+                      </div>
+                      {status.error && (
+                        <div className="mt-2 text-[10px] text-red-500 font-bold uppercase tracking-widest">
+                          {status.error}
+                        </div>
+                      )}
                     </div>
-                  </div>
 
                   <div className="flex items-start gap-4 mb-6">
                     <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300 shadow-sm">
@@ -366,7 +431,10 @@ export const InventoryTable = () => {
                   
                   {/* Action Footer */}
                   <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
-                    <button className="flex items-center gap-2 text-[11px] font-black text-slate-400 hover:text-blue-600 transition-colors uppercase tracking-[0.15em]">
+                    <button
+                       onClick={() => onViewDetail?.(firewall.id)}
+                       className="flex items-center gap-2 text-[11px] font-black text-slate-400 hover:text-blue-600 transition-colors uppercase tracking-[0.15em]"
+                    >
                        <Eye size={16} />
                        Vedi Dettagli
                     </button>
@@ -381,8 +449,9 @@ export const InventoryTable = () => {
                     </a>
                   </div>
 
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </div>
           </>
         )}
