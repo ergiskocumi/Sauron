@@ -404,12 +404,24 @@ const InterfacesTab = memo(({ interfaces }) => {
         <table className="w-full text-sm min-w-[900px]">
           <thead className="bg-slate-50">
             <tr className="border-b border-slate-200">
-            <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-            <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Interface</th>
-            <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">IP / CIDR</th>
-            <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Network</th>
-            <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Type</th>
-            <th className="text-right py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Bandwidth</th>
+            <th className="text-left py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Status</span>
+            </th>
+            <th className="text-left py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Interface</span>
+            </th>
+            <th className="text-left py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">IP / CIDR</span>
+            </th>
+            <th className="text-left py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Network</span>
+            </th>
+            <th className="text-left py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Type</span>
+            </th>
+            <th className="text-right py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Bandwidth</span>
+            </th>
             </tr>
           </thead>
           <tbody>
@@ -540,11 +552,21 @@ const RoutingTab = memo(({ routes, routeProtocols }) => {
               <table className="w-full text-sm min-w-[900px]">
                 <thead className="bg-slate-50">
                   <tr className="border-b border-slate-200">
-                    <th className="text-left py-2 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Destination</th>
-                    <th className="text-left py-2 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Gateway</th>
-                    <th className="text-left py-2 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Interface</th>
-                    <th className="text-right py-2 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Distance</th>
-                    <th className="text-right py-2 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Metric</th>
+                    <th className="text-left py-2 px-4">
+                      <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Destination</span>
+                    </th>
+                    <th className="text-left py-2 px-4">
+                      <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Gateway</span>
+                    </th>
+                    <th className="text-left py-2 px-4">
+                      <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Interface</span>
+                    </th>
+                    <th className="text-right py-2 px-4">
+                      <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Distance</span>
+                    </th>
+                    <th className="text-right py-2 px-4">
+                      <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Metric</span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -632,14 +654,30 @@ const PoliciesTab = memo(({ policies }) => {
         <table className="w-full text-sm min-w-[1100px]">
           <thead className="bg-slate-50">
             <tr className="border-b border-slate-200">
-            <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">ID</th>
-            <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Name</th>
-            <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Source</th>
-            <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Destination</th>
-            <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Service</th>
-            <th className="text-center py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th>
-            <th className="text-center py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Log</th>
-            <th className="text-right py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Traffic</th>
+            <th className="text-left py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">ID</span>
+            </th>
+            <th className="text-left py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Name</span>
+            </th>
+            <th className="text-left py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Source</span>
+            </th>
+            <th className="text-left py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Destination</span>
+            </th>
+            <th className="text-left py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Service</span>
+            </th>
+            <th className="text-center py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Action</span>
+            </th>
+            <th className="text-center py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Log</span>
+            </th>
+            <th className="text-right py-3 px-4">
+              <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Traffic</span>
+            </th>
             </tr>
           </thead>
           <tbody>
