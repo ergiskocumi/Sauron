@@ -26,7 +26,7 @@ export const TableHeader = ({ children }) => {
 export const TableHeaderCell = ({ children, className = '' }) => {
   return (
     <th
-      className={`px-8 py-4 text-left text-[10px] font-bold text-slate-400 uppercase tracking-[0.1em] ${className}`}
+      className={`px-8 py-5 text-left text-[11px] font-black text-blue-600 uppercase tracking-[0.2em] ${className}`}
     >
       {children}
     </th>
