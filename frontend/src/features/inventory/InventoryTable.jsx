@@ -135,17 +135,37 @@ export const InventoryTable = () => {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 group-hover:border-blue-100 group-hover:bg-blue-50/30 transition-all duration-300">
-                        <code className="text-[12px] font-mono font-bold text-slate-600">
-                          {firewall.host}
-                        </code>
-                        <button 
-                          onClick={() => copyToClipboard(firewall.host, firewall.id)}
-                          className="p-1 hover:text-blue-600 text-slate-300 transition-colors"
+                      <div className="relative group/ip">
+                        {/* Tooltip Hover */}
+                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 scale-95 opacity-0 group-hover/ip:opacity-100 group-hover/ip:scale-100 pointer-events-none transition-all duration-300 z-10">
+                          <div className="bg-white border border-slate-100 px-3 py-1.5 rounded-xl shadow-2xl shadow-blue-500/10 flex items-center gap-2">
+                            <span className="text-[10px] font-black text-blue-600 whitespace-nowrap tracking-tighter">VAI AL FW</span>
+                            <ExternalLink size={10} className="text-blue-400" />
+                          </div>
+                          {/* Freccetta Tooltip */}
+                          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-b border-r border-slate-100 rotate-45" />
+                        </div>
+
+                        <a 
+                          href={`https://${firewall.host}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 hover:border-blue-400 hover:bg-white hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-300"
                         >
-                          {copiedId === firewall.id ? <Check size={14} /> : <Copy size={14} />}
-                        </button>
+                          <Globe size={14} className="text-slate-300 group-hover/ip:text-blue-500" />
+                          <code className="text-[12px] font-mono font-bold text-slate-600 group-hover/ip:text-blue-600 transition-colors">
+                            {firewall.host.split(':')[0]}
+                          </code>
+                        </a>
                       </div>
+
+                      <button 
+                        onClick={() => copyToClipboard(firewall.host.split(':')[0], firewall.id)}
+                        className="p-1 hover:text-blue-600 text-slate-300 transition-colors"
+                        title="Copia IP"
+                      >
+                        {copiedId === firewall.id ? <Check size={14} /> : <Copy size={14} />}
+                      </button>
                     </div>
                   </TableCell>
                   <TableCell>
