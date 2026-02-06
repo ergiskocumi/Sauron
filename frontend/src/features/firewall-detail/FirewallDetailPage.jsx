@@ -557,14 +557,20 @@ const RoutingTab = memo(({ routes, routeProtocols }) => {
                       )}
                     >
                       <td className="py-2 px-4">
-                        <code className="font-mono font-bold text-xs text-slate-800">
+                        <div className="flex items-center gap-2">
+                          <span className={cn(
+                            "w-1 h-4 rounded-full",
+                            route.is_default ? "bg-red-400" : "bg-slate-200"
+                          )} />
+                          <code className="font-mono font-bold text-xs text-slate-800">
                           {route.destination}
-                        </code>
-                        {route.is_default && (
-                          <span className="ml-2 text-[8px] font-black text-red-500 bg-red-50 px-1.5 py-0.5 rounded border border-red-100">
-                            DEFAULT
-                          </span>
-                        )}
+                          </code>
+                          {route.is_default && (
+                            <span className="text-[8px] font-black uppercase tracking-widest text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                              Default
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-2 px-4">
                         <code className="font-mono text-xs text-slate-500">{route.gateway}</code>
