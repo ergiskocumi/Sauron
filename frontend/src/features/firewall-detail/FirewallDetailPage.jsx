@@ -502,17 +502,20 @@ const RoutingTab = memo(({ routes, routeProtocols }) => {
   return (
     <div className="space-y-6">
       {/* Protocol Summary */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600">
+          Totale: {routes.length}
+        </div>
         {sortedProtos.map((proto) => {
           const ps = getProtocolStyle(proto);
           const count = routesByProtocol[proto].length;
           return (
-            <div key={proto} className={cn("flex items-center gap-2 px-4 py-2 rounded-xl border", ps.bg, ps.border)}>
+            <div key={proto} className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full border", ps.bg, ps.border)}>
               <div className={cn("w-2.5 h-2.5 rounded-full", ps.dot)} />
-              <span className={cn("text-[11px] font-black uppercase tracking-wider", ps.text)}>
+              <span className={cn("text-[10px] font-black uppercase tracking-wider", ps.text)}>
                 {proto}
               </span>
-              <span className={cn("text-sm font-black", ps.text)}>{count}</span>
+              <span className={cn("text-[11px] font-black", ps.text)}>{count}</span>
             </div>
           );
         })}
@@ -524,10 +527,13 @@ const RoutingTab = memo(({ routes, routeProtocols }) => {
         const ps = getProtocolStyle(proto);
         return (
           <div key={proto}>
-            <div className={cn("flex items-center gap-2 px-4 py-2 rounded-xl mb-2", ps.bg)}>
+            <div className={cn("flex items-center gap-2 px-4 py-2 rounded-xl mb-2 border", ps.bg, ps.border)}>
               <div className={cn("w-2 h-2 rounded-full", ps.dot)} />
               <span className={cn("text-[10px] font-black uppercase tracking-widest", ps.text)}>
-                {proto} ({protoRoutes.length})
+                {proto}
+              </span>
+              <span className={cn("text-[10px] font-black", ps.text)}>
+                {protoRoutes.length} routes
               </span>
             </div>
             <div className="overflow-x-auto rounded-2xl border border-slate-200">
