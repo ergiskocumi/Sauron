@@ -71,7 +71,9 @@ API_TIMEOUT=10
 ## Modalità CLI (Command Line)
 Esegue una scansione asincrona (parallela su VDOM multipli) e stampa i risultati a video:
 ```bash
-python main.py
+python main.py #se lo si vuole avviare tramite CLI 
+uvicorn backend.api:app --reload #per avviare il "backend" server
+npm run dev # per far partire il frontend del progetto
 ```
 
 # 📡 Mappa delle API FortiOS (Inventory)

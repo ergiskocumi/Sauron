@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { addFirewall } from '../../services/inventoryService';
 import { X, Plus, HelpCircle, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 
 const TOKEN_GUIDE_STEPS = [
@@ -21,12 +22,26 @@ export const AddFirewallForm = ({ onClose, onSuccess }) => {
   const [showToken, setShowToken] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const firstInputRef = useRef(null);
+  const guideRef = useRef(null);
   const modalTitleId = 'add-firewall-title';
 
   // Auto-focus first input on mount
   useEffect(() => {
     firstInputRef.current?.focus();
   }, []);
+
+  // Close guide when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (guideRef.current && !guideRef.current.contains(e.target) && !e.target.closest('.guide-toggle')) {
+        setShowGuide(false);
+      }
+    };
+    if (showGuide) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showGuide]);
 
   // Escape key closes modal
   useEffect(() => {
@@ -103,7 +118,7 @@ export const AddFirewallForm = ({ onClose, onSuccess }) => {
         role="dialog"
         aria-modal="true"
         aria-labelledby={modalTitleId}
-        className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden"
+        className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg mx-4"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
@@ -168,14 +183,71 @@ export const AddFirewallForm = ({ onClose, onSuccess }) => {
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest">
                 API Token
               </label>
-              <button
-                type="button"
-                onClick={() => setShowGuide(!showGuide)}
-                className="flex items-center gap-1 text-xs font-bold text-blue-500 hover:text-blue-700 transition-colors"
-              >
-                <HelpCircle size={14} />
-                Come creare il token?
-              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowGuide(!showGuide)}
+                  className="guide-toggle flex items-center gap-1 text-xs font-bold text-blue-500 hover:text-blue-700 transition-colors"
+                >
+                  <HelpCircle size={14} />
+                  Come creare il token?
+                </button>
+
+                {/* Popover Guide "Cloud" */}
+                <AnimatePresence>
+                  {showGuide && (
+                    <motion.div
+                      ref={guideRef}
+                      initial={{ opacity: 0, scale: 0.9, x: -10 }}
+                      animate={{ opacity: 1, scale: 1, x: 0 }}
+                      exit={{ opacity: 0, scale: 0.9, x: -10 }}
+                      className="absolute z-[200]
+                        /* Mobile: sopra il pulsante */
+                        bottom-full right-0 mb-4 
+                        /* Desktop: a destra, centrato verticalmente rispetto al pulsante */
+                        md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:left-[calc(100%+2rem)]
+                        w-[300px] md:w-[380px] bg-white border border-slate-100 rounded-[2rem] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.2)] p-7"
+                    >
+                      {/* Triangle Tail (Desktop only) */}
+                      <div className="hidden md:block absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-l border-t border-slate-100 rotate-[-45deg]" />
+                      
+                      <div className="flex items-center gap-3 mb-5">
+                        <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-100/50">
+                          <HelpCircle size={20} />
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-bold text-slate-900 leading-tight">
+                            Guida: API Token
+                          </h4>
+                          <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Procedura FortiGate</p>
+                        </div>
+                      </div>
+
+                      <ol className="space-y-3.5">
+                        {TOKEN_GUIDE_STEPS.map((step, idx) => (
+                          <li key={idx} className="group flex gap-4 text-[13px] text-slate-600 items-start leading-snug">
+                            <span className="flex-shrink-0 w-7 h-7 bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white rounded-lg flex items-center justify-center font-bold text-xs transition-all duration-200 mt-0.5 border border-blue-100/50">
+                              {idx + 1}
+                            </span>
+                            <span className="group-hover:text-blue-700 transition-colors duration-200 font-medium pt-1">
+                              {step}
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+
+                      <div className="mt-6 pt-5 border-t border-slate-100">
+                        <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                          <AlertCircle size={16} className="text-blue-500 flex-shrink-0" />
+                          <p className="text-[11px] text-slate-500 leading-normal font-medium">
+                            Verifica la connettività tra i dispositivi prima di salvare.
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
             <div className="relative">
               <input
@@ -200,25 +272,6 @@ export const AddFirewallForm = ({ onClose, onSuccess }) => {
               </p>
             )}
           </div>
-
-          {/* Token Guide */}
-          {showGuide && (
-            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5">
-              <h4 className="text-sm font-bold text-blue-800 mb-3">
-                Guida: Creare un API Token su FortiGate
-              </h4>
-              <ol className="space-y-2">
-                {TOKEN_GUIDE_STEPS.map((step, idx) => (
-                  <li key={idx} className="flex gap-3 text-xs text-blue-700">
-                    <span className="flex-shrink-0 w-5 h-5 bg-blue-200 text-blue-800 rounded-full flex items-center justify-center font-bold text-[10px]">
-                      {idx + 1}
-                    </span>
-                    <span className="pt-0.5">{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
 
           {/* Actions */}
           <div className="flex gap-3 pt-2">
