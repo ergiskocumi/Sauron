@@ -5,9 +5,9 @@
  * Supporta header, body e gestione stati vuoti.
  */
 
-export const Table = ({ children, className = '' }) => {
+export const Table = ({ children, className = '', containerClassName = '' }) => {
   return (
-    <div className="overflow-x-auto">
+    <div className={`overflow-x-auto ${containerClassName}`}>
       <table className={`min-w-full divide-y divide-slate-100 ${className}`}>
         {children}
       </table>

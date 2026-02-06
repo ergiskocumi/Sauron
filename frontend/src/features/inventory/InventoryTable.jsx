@@ -35,7 +35,6 @@ import { Badge } from '../../components/ui/Badge';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Alert } from '../../components/ui/Alert';
 import { RefreshCw, Server, Globe, Shield, Copy, Check, ExternalLink, Plus, List } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { AddFirewallForm } from './AddFirewallForm';
 
@@ -78,7 +77,7 @@ export const InventoryTable = () => {
   }
 
   return (
-    <Card>
+    <Card className="overflow-visible">
       <CardHeader className="flex items-center justify-between border-none pb-0">
         <div>
           <CardTitle>Dispositivi Configurati</CardTitle>
@@ -111,7 +110,7 @@ export const InventoryTable = () => {
         {inventory.length === 0 ? (
           <TableEmptyState message="Nessun firewall configurato nell'inventario" />
         ) : (
-          <Table>
+          <Table containerClassName="!overflow-visible">
             <TableHeader>
               <TableHeaderCell>Dispositivo</TableHeaderCell>
               <TableHeaderCell>Network Address</TableHeaderCell>
@@ -120,7 +119,7 @@ export const InventoryTable = () => {
             </TableHeader>
             <TableBody>
               {inventory.map((firewall) => (
-                <TableRow key={firewall.id} className="group cursor-default">
+                <TableRow key={firewall.id} className="group cursor-default hover:z-30 relative">
                   <TableCell>
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:scale-110 transition-all duration-500 shadow-sm">
@@ -174,41 +173,65 @@ export const InventoryTable = () => {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <div className="relative group/vdom">
-                        <div className="flex items-center gap-2 bg-indigo-50/50 px-2.5 py-1 rounded-xl border border-indigo-100 group-hover/vdom:bg-indigo-600 group-hover/vdom:text-white transition-all cursor-help shadow-sm">
-                          <Shield size={14} className="text-indigo-400 group-hover/vdom:text-white" />
-                          <span className="text-indigo-700 group-hover/vdom:text-white font-black text-xs">
+                        {/* Badge Conteggio */}
+                        <div className="flex items-center gap-2 bg-indigo-50/80 px-3 py-1.5 rounded-2xl border border-indigo-100 group-hover/vdom:bg-indigo-600 group-hover/vdom:text-white group-hover/vdom:scale-105 transition-all duration-300 cursor-help shadow-sm">
+                          <Shield size={14} className="text-indigo-500 group-hover/vdom:text-white" />
+                          <span className="text-indigo-800 group-hover/vdom:text-white font-black text-[11px] tracking-tight">
                             {firewall.vdoms?.length || 1} V-DOM
                           </span>
                         </div>
 
-                        {/* VDOM Popover Table */}
-                        <AnimatePresence>
-                          {firewall.vdoms?.length > 0 && (
-                            <motion.div
-                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                              whileHover={{ opacity: 1, y: 0, scale: 1 }}
-                              className="absolute bottom-full left-0 mb-3 w-48 bg-white border border-slate-100 rounded-2xl shadow-2xl opacity-0 group-hover/vdom:opacity-100 pointer-events-none group-hover/vdom:pointer-events-auto z-50 overflow-hidden"
-                            >
-                              <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 flex items-center gap-2">
-                                <List size={12} className="text-blue-600" />
-                                <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Lista VDOM</span>
+                        {/* VDOM Popover "Cloud" Style */}
+                        {firewall.vdoms?.length > 0 && (
+                          <div
+                            className="absolute bottom-full left-0 mb-4 w-72 bg-white border border-slate-100 rounded-[2rem] shadow-[0_30px_70px_rgba(0,0,0,0.15)] opacity-0 group-hover/vdom:opacity-100 translate-y-2 group-hover/vdom:translate-y-0 scale-95 group-hover/vdom:scale-100 pointer-events-none group-hover/vdom:pointer-events-auto transition-all duration-200 z-50"
+                          >
+                              {/* Header Popover */}
+                              <div className="bg-indigo-600 px-6 py-4 flex items-center justify-between rounded-t-[2rem]">
+                                <div className="flex items-center gap-3">
+                                  <div className="bg-white/20 p-2 rounded-xl">
+                                    <List size={16} className="text-white" />
+                                  </div>
+                                  <div>
+                                    <span className="block text-xs font-black text-white uppercase tracking-widest">Domini Virtuali</span>
+                                    <span className="text-[10px] text-indigo-100 font-bold">{firewall.vdoms.length} segmenti attivi</span>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="max-h-40 overflow-y-auto scrollbar-hide">
+
+                              {/* Lista VDOM */}
+                              <div className="max-h-64 overflow-y-auto scrollbar-hide py-3">
                                 {firewall.vdoms.map((vdom, idx) => (
                                   <div 
                                     key={idx} 
-                                    className="px-4 py-2 text-[11px] font-bold text-slate-600 border-b border-slate-50 last:border-none flex items-center justify-between hover:bg-indigo-50/50 transition-colors"
+                                    className="px-6 py-3 group/item flex items-center justify-between hover:bg-slate-50 transition-colors"
                                   >
-                                    <span>{vdom}</span>
+                                    <div className="flex items-center gap-3">
+                                      <div className={`w-2 h-2 rounded-full ${vdom === firewall.entry_vdom ? 'bg-blue-500 animate-pulse' : 'bg-slate-200 group-hover/item:bg-indigo-400'}`} />
+                                      <span className={`text-[13px] font-bold ${vdom === firewall.entry_vdom ? 'text-blue-600' : 'text-slate-600 group-hover/item:text-slate-900'}`}>
+                                        {vdom}
+                                      </span>
+                                    </div>
                                     {vdom === firewall.entry_vdom && (
-                                      <span className="text-[8px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-md font-black uppercase">Default</span>
+                                      <span className="text-[9px] bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full font-black uppercase border border-blue-100 shadow-sm shadow-blue-500/5">
+                                        Default
+                                      </span>
                                     )}
                                   </div>
                                 ))}
                               </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+
+                              {/* Footer Popover */}
+                              <div className="bg-slate-50/50 px-6 py-3 border-t border-slate-100 rounded-b-[2rem]">
+                                <p className="text-[10px] text-slate-400 font-bold italic">
+                                  * Rilevato dallo snapshot di rete
+                                </p>
+                              </div>
+
+                              {/* Triangolino */}
+                              <div className="absolute -bottom-1 left-8 w-3 h-3 bg-white border-b border-r border-slate-100 rotate-45" />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </TableCell>
