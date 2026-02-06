@@ -703,11 +703,15 @@ const PoliciesTab = memo(({ policies }) => {
                   </td>
                   <td className="py-3 px-4 text-center">
                     <span className={cn(
-                      "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full",
+                      "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full inline-flex items-center gap-1.5",
                       policy.action === 'accept'
                         ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                         : "bg-red-50 text-red-700 border border-red-200"
                     )}>
+                      <span className={cn(
+                        "w-1.5 h-1.5 rounded-full",
+                        policy.action === 'accept' ? "bg-emerald-500" : "bg-red-500"
+                      )} />
                       {policy.action === 'accept' ? 'ACCEPT' : 'DENY'}
                     </span>
                   </td>
@@ -722,11 +726,13 @@ const PoliciesTab = memo(({ policies }) => {
                   </td>
                   <td className="py-3 px-4 text-right">
                     <div>
-                      <span className="text-xs font-bold text-slate-700">{formatBytes(policy.bytes)}</span>
+                      <span className="text-xs font-black text-slate-800">{formatBytes(policy.bytes)}</span>
                       <div className="text-[9px] text-slate-400 font-mono">
                         {policy.hit_count.toLocaleString()} hits
                         {isUnused && (
-                          <span className="ml-1 text-amber-600 font-black">UNUSED</span>
+                          <span className="ml-2 text-[8px] font-black uppercase tracking-widest text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                            UNUSED
+                          </span>
                         )}
                       </div>
                     </div>
