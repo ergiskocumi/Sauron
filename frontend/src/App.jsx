@@ -5,8 +5,8 @@ import { cn } from './lib/utils';
 import { Layout } from './components/Layout';
 import { InventoryTable } from './features/inventory/InventoryTable';
 import { NetworkMap } from './features/topology/NetworkMap';
-import { useHeartbeat } from './hooks/useHeartbeat';
 import { useInventory } from './hooks/useInventory';
+import { useSystemInfo } from './hooks/useSystemInfo';
 import { Activity, RefreshCw, Server, Info, Zap } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FirewallDetailPage } from './features/firewall-detail/FirewallDetailPage';
@@ -16,8 +16,8 @@ import { TABS } from './constants';
 function App() {
   const [activeTab, setActiveTab] = useState(TABS.INVENTORY);
   const [selectedFirewallId, setSelectedFirewallId] = useState(null);
-  const { inventory } = useInventory();
-  const heartbeatStatuses = useHeartbeat(inventory);
+  const { inventory, healthById } = useInventory();
+  const { info: systemInfo } = useSystemInfo();
   const [isScanning, setIsScanning] = useState(false);
 
   // Reset firewall detail when switching away from inventory
@@ -29,13 +29,15 @@ function App() {
   }, []);
 
   const onlineCount = useMemo(
-    () => inventory.filter(f => heartbeatStatuses[f.id] === 'online').length,
-    [inventory, heartbeatStatuses]
+    () => inventory.filter(f => healthById?.[f.id]?.reachable === true).length,
+    [inventory, healthById]
   );
   const offlineCount = useMemo(
-    () => inventory.filter(f => heartbeatStatuses[f.id] === 'offline').length,
-    [inventory, heartbeatStatuses]
+    () => inventory.filter(f => healthById?.[f.id]?.reachable === false && f.enabled).length,
+    [inventory, healthById]
   );
+  const totalCount = inventory.length;
+  const syncSuccess = totalCount > 0 ? Math.round((onlineCount / totalCount) * 100) : 0;
 
   const startScan = async () => {
     setIsScanning(true);
@@ -136,26 +138,26 @@ function App() {
                           <StatusCard
                             label="Online Devices"
                             value={onlineCount}
-                            total={inventory.length}
+                            total={totalCount}
                             color="green"
                             icon={<Server size={18} />}
                           />
                           <StatusCard
                             label="Critical Alerts"
                             value={offlineCount}
-                            total={inventory.length}
+                            total={totalCount}
                             color="red"
                             icon={<Activity size={18} />}
                           />
                           <StatusCard
                             label="Sync Success"
-                            value="98%"
+                            value={`${syncSuccess}%`}
                             color="blue"
                             icon={<RefreshCw size={18} />}
                           />
                           <StatusCard
                             label="System Info"
-                            value="v0.1.0"
+                            value={systemInfo?.app_version ? `v${systemInfo.app_version}` : '---'}
                             color="slate"
                             icon={<Info size={18} />}
                           />

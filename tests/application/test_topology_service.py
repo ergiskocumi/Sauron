@@ -16,6 +16,7 @@ from typing import List
 
 from application.models.topology import Node, InterfaceRecord, Link, Topology
 from application.services.topology_service import TopologyService
+from domain.models import Route
 
 
 class TestInterfaceRecord:
@@ -228,6 +229,71 @@ class TestTopologyService:
         subnets = {link.subnet for link in topology.links}
         assert "192.168.1.0/24" in subnets
         assert "10.0.0.0/24" in subnets
+
+    def test_build_topology_with_routing_tables_creates_directed_links(
+        self,
+        service: TopologyService,
+        two_firewalls_same_subnet: List[InterfaceRecord],
+    ):
+        """Con routing_tables, la topologia deve essere orientata (next-hop)."""
+        routing_tables = {
+            "fw1:root": [
+                Route(
+                    ip_mask="192.168.1.0/24",
+                    gateway="0.0.0.0",
+                    interface="port1",
+                    type="connected",
+                    distance=0,
+                    metric=0,
+                ),
+                Route(
+                    ip_mask="10.10.0.0/16",
+                    gateway="192.168.1.2",
+                    interface="port1",
+                    type="static",
+                    distance=10,
+                    metric=5,
+                ),
+            ],
+            "fw2:root": [],
+        }
+
+        topology = service.build_topology(two_firewalls_same_subnet, routing_tables)
+
+        assert topology.node_count == 2
+        assert topology.link_count == 1
+        link = topology.links[0]
+        assert link.source == "fw1:root"
+        assert link.target == "fw2:root"
+        assert topology.adjacency["fw1:root"][0][0] == "fw2:root"
+        assert topology.adjacency.get("fw2:root", []) == []
+
+    def test_find_node_by_ip_uses_interfaces_index_in_directed_mode(
+        self,
+        service: TopologyService,
+        two_firewalls_same_subnet: List[InterfaceRecord],
+    ):
+        """Il lookup IP deve funzionare anche se il target non e' in link.interfaces."""
+        routing_tables = {
+            "fw1:root": [
+                Route(
+                    ip_mask="10.10.0.0/16",
+                    gateway="192.168.1.2",
+                    interface="port1",
+                    type="static",
+                    distance=10,
+                    metric=5,
+                ),
+            ],
+            "fw2:root": [],
+        }
+
+        topology = service.build_topology(two_firewalls_same_subnet, routing_tables)
+        result = service.find_node_by_ip(topology, "192.168.1.2")
+        assert result is not None
+        node, iface = result
+        assert node.node_key == "fw2:root"
+        assert iface.iface_name == "port1"
 
     def test_adjacency_list_built_correctly(
         self,

@@ -26,6 +26,14 @@ import {
   ChevronRight,
   Wifi,
   WifiOff,
+  MessageCircleQuestion,
+  GraduationCap,
+  Wrench,
+  ChevronDown,
+  BookOpen,
+  Hash,
+  Globe,
+  Zap,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useFirewallDetail } from '../../hooks/useFirewallDetail';
@@ -124,106 +132,151 @@ const FirewallHeader = memo(({ data, onBack, onRefresh }) => {
   const { system_status: status, system_resources: resources } = data;
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 overflow-hidden">
-      {/* Top Bar */}
-      <div className="bg-slate-900 px-6 md:px-8 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-start md:items-center gap-4">
-          <button
-            onClick={onBack}
-            className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
-          >
-            <ArrowLeft size={18} className="text-white" />
-          </button>
-          <div>
-            <h1 className="text-xl md:text-2xl font-black text-white tracking-tight">
-              {status.hostname || data.device_id}
-            </h1>
-            <div className="flex flex-wrap items-center gap-2 mt-1">
-              {status.model_name && (
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  {status.model_name}
+    <div className="bg-white rounded-[2rem] border border-slate-200 shadow-2xl shadow-slate-200/40 overflow-hidden mb-6">
+      {/* Top Bar with unique glass effect */}
+      <div className="relative bg-slate-900 px-6 md:px-10 py-6 overflow-hidden">
+        {/* Decorative elements */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/10 blur-[100px] -mr-48 -mt-48 rounded-full" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-600/10 blur-[80px] -ml-32 -mb-32 rounded-full" />
+        
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="flex items-center gap-5">
+            <motion.button
+              whileHover={{ scale: 1.05, x: -2 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onBack}
+              className="p-3 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/10 transition-all shadow-lg"
+            >
+              <ArrowLeft size={20} className="text-white" />
+            </motion.button>
+            
+            <div className="h-10 w-[1px] bg-white/10 hidden md:block" />
+
+            <div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl md:text-3xl font-black text-white tracking-tighter">
+                  {status.hostname || data.device_id}
+                </h1>
+                <div className="px-2.5 py-1 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center gap-1.5 shadow-lg shadow-emerald-500/10">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Online</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 mt-2">
+                <div className="flex items-center gap-2">
+                   <div className="w-4 h-4 rounded bg-white/5 flex items-center justify-center">
+                      <Shield size={10} className="text-slate-400" />
+                   </div>
+                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                     {status.model_name || 'Generic Device'}
+                   </span>
+                </div>
+                <span className="text-slate-600 font-black text-[10px] select-none">•</span>
+                <span className="text-[10px] font-black text-blue-400 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/20 uppercase tracking-wider backdrop-blur-md">
+                  Firmware v{status.firmware_version}
                 </span>
-              )}
-              {status.firmware_version && (
-                <span className="text-[10px] font-bold text-blue-400 bg-blue-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  {status.firmware_version}
-                </span>
-              )}
-              {status.serial && (
-                <span className="text-[10px] font-mono text-slate-500">
+                <span className="text-slate-600 font-black text-[10px] select-none">•</span>
+                <span className="text-[10px] font-mono font-bold text-slate-500 tracking-wider">
                   S/N: {status.serial}
                 </span>
-              )}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-3 md:gap-4">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-white/10 rounded-xl">
-            <Wifi size={14} className="text-emerald-400" />
-            <span className="text-[10px] font-black text-emerald-200 uppercase tracking-widest">
-              Live Monitoring
-            </span>
-          </div>
-          {status.uptime > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-xl">
-              <Clock size={14} className="text-slate-400" />
-              <span className="text-[11px] font-bold text-slate-300">
-                Uptime: {status.uptime_human}
-              </span>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-col items-end">
+               <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-xl">
+                 <Clock size={14} className="text-indigo-400" />
+                 <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+                   Uptime: <span className="text-white ml-1">{status.uptime_human}</span>
+                 </span>
+               </div>
+               {status.last_sync && (
+                 <span className="text-[9px] font-bold text-slate-500 mt-1.5 uppercase tracking-widest">
+                   Last Sync: {status.last_sync}
+                 </span>
+               )}
             </div>
-          )}
-          <button
-            onClick={onRefresh}
-            className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors group"
-          >
-            <RefreshCw size={16} className="text-white group-hover:rotate-180 transition-transform duration-500" />
-          </button>
+            
+            <div className="w-[1px] h-10 bg-white/10" />
+
+            <motion.button
+              whileHover={{ rotate: 180 }}
+              transition={{ duration: 0.6, ease: 'circOut' }}
+              onClick={onRefresh}
+              className="p-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white shadow-xl shadow-blue-600/30 transition-all border border-blue-400/30 active:scale-95"
+            >
+              <RefreshCw size={20} />
+            </motion.button>
+          </div>
         </div>
       </div>
 
-      {/* Resource Gauges */}
-      <div className="px-6 md:px-8 py-6 grid grid-cols-1 lg:grid-cols-[auto_auto_1fr_auto] gap-6 lg:gap-8 items-center">
-        <div className="flex items-center gap-6 justify-center lg:justify-start">
-          <DonutGauge value={resources.cpu_usage} label="CPU" color="blue" icon={Cpu} />
-          <DonutGauge value={resources.memory_usage} label="RAM" color="green" icon={MemoryStick} />
-        </div>
-
-        {/* Session Counter */}
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="text-4xl font-black text-slate-900 tracking-tight">
-              {resources.session_count.toLocaleString()}
+      {/* Main Stats with Gauges and Pulse */}
+      <div className="px-6 md:px-10 py-8 lg:py-10">
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-10">
+          {/* Left: Health Gauges */}
+          <div className="flex items-center gap-8 md:gap-12">
+            <div className="relative group">
+              <DonutGauge value={resources.cpu_usage} label="CPU" color="blue" icon={Cpu} size={110} />
+              <div className="absolute -top-2 -right-2 w-6 h-6 bg-white border border-slate-100 rounded-full flex items-center justify-center shadow-lg transform scale-0 group-hover:scale-100 transition-transform">
+                 <Activity size={10} className="text-blue-500" />
+              </div>
             </div>
-            <div className="flex items-center justify-center gap-1.5 mt-1">
-              <Activity size={14} className="text-blue-500" />
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                Sessioni Attive
-              </span>
+            <div className="relative group">
+              <DonutGauge value={resources.memory_usage} label="RAM" color="green" icon={MemoryStick} size={110} />
+              <div className="absolute -top-2 -right-2 w-6 h-6 bg-white border border-slate-100 rounded-full flex items-center justify-center shadow-lg transform scale-0 group-hover:scale-100 transition-transform">
+                 <Hash size={10} className="text-emerald-500" />
+              </div>
             </div>
-            {resources.setup_rate > 0 && (
-              <span className="text-[10px] text-slate-400 font-mono mt-0.5 block">
-                +{resources.setup_rate}/sec
-              </span>
-            )}
           </div>
-        </div>
 
-        {/* Summary Stats */}
-        <div className="flex flex-wrap justify-center lg:justify-end gap-4">
-          <StatPill label="VDOMs" value={data.vdoms.length} icon={Shield} color="violet" />
-          <StatPill
-            label="Subnets"
-            value={data.subnets?.length || 0}
-            icon={Network}
-            color="emerald"
-          />
-          <StatPill
-            label="Peers"
-            value={data.external_peers?.length || 0}
-            icon={Server}
-            color="amber"
-          />
+          {/* Center: Live Session Pulse */}
+          <div className="flex-1 flex flex-col items-center">
+            <div className="relative">
+              {/* Pulse effect around numbers */}
+              <div className="absolute inset-0 bg-blue-500/5 blur-3xl rounded-full scale-150 animate-pulse" />
+              <div className="relative text-center">
+                <div className="text-5xl md:text-6xl font-black text-slate-900 tracking-tighter tabular-nums drop-shadow-sm">
+                  {resources.session_count.toLocaleString()}
+                </div>
+                <div className="flex items-center justify-center gap-2 mt-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.4)]" />
+                  <span className="text-xs font-black text-slate-400 uppercase tracking-[0.3em]">
+                    Active Sessions
+                  </span>
+                </div>
+                {resources.setup_rate > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-3 px-3 py-1 rounded-full bg-blue-50 border border-blue-100 inline-block"
+                  >
+                    <span className="text-[11px] font-black text-blue-600 font-mono">
+                      LOAD: +{resources.setup_rate} cps
+                    </span>
+                  </motion.div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Right: Summary Pills */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:flex lg:flex-wrap justify-center lg:justify-end gap-3 md:gap-4 shrink-0">
+            <StatPill label="VDOMs" value={data.vdoms.length} icon={Shield} color="violet" />
+            <StatPill
+              label="Subnets"
+              value={data.subnets?.length || 0}
+              icon={Network}
+              color="emerald"
+            />
+            <StatPill
+              label="Peers"
+              value={data.external_peers?.length || 0}
+              icon={Server}
+              color="amber"
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -239,11 +292,16 @@ const StatPill = ({ label, value, icon: Icon, color }) => {
   };
 
   return (
-    <div className={cn("px-4 py-3 rounded-2xl border flex flex-col items-center gap-1", colors[color])}>
-      <Icon size={16} />
-      <span className="text-xl font-black leading-none">{value}</span>
-      <span className="text-[8px] font-black uppercase tracking-widest">{label}</span>
-    </div>
+    <motion.div 
+      whileHover={{ y: -5, scale: 1.02 }}
+      className={cn("px-5 py-4 rounded-[1.5rem] border flex flex-col items-center gap-1.5 transition-all cursor-default shadow-sm", colors[color])}
+    >
+      <div className="p-2 bg-white/50 rounded-xl mb-1 shadow-inner-sm">
+        <Icon size={18} />
+      </div>
+      <span className="text-2xl font-black leading-none tracking-tighter tabular-nums">{value}</span>
+      <span className="text-[9px] font-black uppercase tracking-[0.2em] opacity-70">{label}</span>
+    </motion.div>
   );
 };
 
@@ -487,8 +545,453 @@ const InterfacesTab = memo(({ interfaces }) => {
   );
 });
 
+// =============================================================================
+// ROUTE EXPLANATION ENGINE
+// =============================================================================
+
+const CIDR_GLOSSARY = [
+  { cidr: '/32', hosts: '1', desc: 'Singolo host (un solo computer/dispositivo)' },
+  { cidr: '/30', hosts: '2', desc: 'Link point-to-point (collegamento diretto tra 2 router)' },
+  { cidr: '/24', hosts: '254', desc: 'Subnet classica (ufficio, piano di un edificio)' },
+  { cidr: '/16', hosts: '65.534', desc: 'Rete grande (campus, datacenter)' },
+  { cidr: '/8', hosts: '16M+', desc: 'Rete enorme (blocco di classe A)' },
+  { cidr: '/0', hosts: 'Tutti', desc: 'Qualsiasi destinazione (default route)' },
+];
+
+const PROTOCOL_EXPLANATION = {
+  connected: {
+    simple: 'Rete direttamente collegata al firewall (come una strada sotto casa tua)',
+    expert: 'Rete directly connected - automaticamente inserita nel RIB quando l\'interfaccia va UP con un IP configurato',
+  },
+  static: {
+    simple: 'Percorso configurato manualmente dall\'amministratore (come un cartello stradale fisso)',
+    expert: 'Rotta statica configurata manualmente - AD default 10, persistente indipendentemente dallo stato dei protocolli di routing',
+  },
+  ospf: {
+    simple: 'Percorso scoperto automaticamente dai router che si parlano tra loro (come un GPS che aggiorna le strade in tempo reale)',
+    expert: 'Rotta appresa via OSPF (Open Shortest Path First) - protocollo IGP link-state, AD 110. Il percorso migliore viene calcolato con l\'algoritmo SPF di Dijkstra',
+  },
+  bgp: {
+    simple: 'Percorso appreso da reti esterne/Internet (come le indicazioni tra paesi diversi)',
+    expert: 'Rotta BGP (Border Gateway Protocol) - protocollo EGP path-vector, AD 20 (eBGP) o 200 (iBGP). Decisione basata su path attributes (AS-PATH, LOCAL_PREF, MED)',
+  },
+};
+
+/**
+ * Genera una spiegazione human-readable per una rotta.
+ * @param {Object} route - { destination, gateway, interface, protocol, metric, distance, is_default }
+ * @param {'simple'|'expert'} mode
+ * @returns {{ title: string, description: string, details: string[], tags: string[] }}
+ */
+const generateRouteExplanation = (route, mode = 'simple') => {
+  const { destination, gateway, interface: iface, protocol, metric, distance, is_default } = route;
+  const proto = protocol?.toLowerCase() || 'unknown';
+  const prefix = destination?.split('/')[1];
+  const prefixNum = parseInt(prefix, 10);
+  const network = destination?.split('/')[0];
+  const isNullRoute = gateway === '0.0.0.0' && (!iface || iface === '' || iface === 'Null' || iface === 'blackhole');
+  const isConnected = proto === 'connected';
+  const isHostRoute = prefixNum === 32;
+  const tags = [];
+
+  // Build tags
+  if (is_default) tags.push('Default Route');
+  if (isHostRoute) tags.push('Host Route');
+  if (isNullRoute) tags.push('Null Route');
+  if (isConnected) tags.push('Directly Connected');
+  tags.push(proto.toUpperCase());
+
+  if (mode === 'simple') {
+    return generateSimpleExplanation(route, { proto, prefix, prefixNum, network, isNullRoute, isConnected, isHostRoute, tags });
+  }
+  return generateExpertExplanation(route, { proto, prefix, prefixNum, network, isNullRoute, isConnected, isHostRoute, tags });
+};
+
+const generateSimpleExplanation = (route, ctx) => {
+  const { destination, gateway, interface: iface } = route;
+  const { proto, prefixNum, network, isNullRoute, isConnected, isHostRoute, tags } = ctx;
+
+  let title, description;
+  const details = [];
+
+  // Default route
+  if (route.is_default) {
+    title = 'Uscita verso Internet';
+    description = `Per tutto il traffico senza una destinazione specifica, il firewall lo manda al router ${gateway} tramite l'interfaccia ${iface}. Immagina questa come l'uscita principale dell'edificio: se non sai dove andare, esci da qui.`;
+    details.push(`Gateway di default: ${gateway}`);
+    details.push(`Interfaccia di uscita: ${iface}`);
+    return { title, description, details, tags };
+  }
+
+  // Null route (blackhole)
+  if (isNullRoute) {
+    title = 'Buco nero (traffico scartato)';
+    description = `Il traffico verso ${destination} viene deliberatamente scartato. Come un cestino: qualunque pacchetto diretto qui viene buttato via silenziosamente. Si usa per prevenire loop di routing o bloccare reti specifiche.`;
+    details.push(`Rete bloccata: ${destination}`);
+    return { title, description, details, tags };
+  }
+
+  // Host route (/32)
+  if (isHostRoute) {
+    title = `Rotta verso un singolo dispositivo`;
+    description = `Questa rotta punta esattamente a un solo computer/dispositivo con IP ${network}. ${isConnected
+      ? `E' collegato direttamente al firewall sull'interfaccia ${iface}.`
+      : `I pacchetti passano dal router ${gateway} tramite l'interfaccia ${iface}.`
+    }`;
+    details.push(`Dispositivo: ${network}`);
+    if (!isConnected) details.push(`Passa dal router: ${gateway}`);
+    details.push(`Interfaccia: ${iface}`);
+    return { title, description, details, tags };
+  }
+
+  // Connected route
+  if (isConnected) {
+    title = 'Rete locale direttamente collegata';
+    description = `La rete ${destination} e' fisicamente connessa all'interfaccia ${iface} del firewall. Come i colleghi nello stesso ufficio: per raggiungerli non devi uscire dall'edificio, basta gridare.`;
+    details.push(`Rete locale: ${destination}`);
+    details.push(`Interfaccia diretta: ${iface}`);
+    if (prefixNum === 24) details.push('Dimensione: circa 254 dispositivi possibili');
+    if (prefixNum === 16) details.push('Dimensione: rete grande, fino a ~65.000 dispositivi');
+    return { title, description, details, tags };
+  }
+
+  // Specific network via routing protocol
+  const protoName = { static: 'statica', ospf: 'OSPF', bgp: 'BGP' }[proto] || proto;
+  title = `Percorso ${protoName} verso ${destination}`;
+
+  if (proto === 'static') {
+    description = `L'amministratore ha configurato manualmente che per raggiungere la rete ${destination} si deve passare dal router ${gateway} tramite l'interfaccia ${iface}. Come un cartello stradale fisso messo da qualcuno.`;
+  } else if (proto === 'ospf') {
+    description = `Il firewall ha scoperto automaticamente che la rete ${destination} e' raggiungibile passando dal router ${gateway} tramite l'interfaccia ${iface}. Come un GPS aggiornato in tempo reale dai router che si parlano tra loro.`;
+  } else if (proto === 'bgp') {
+    description = `La rete ${destination} e' raggiungibile tramite il router ${gateway} sull'interfaccia ${iface}. Questa informazione arriva dal protocollo BGP, il "sistema postale internazionale" che collega reti diverse (anche su Internet).`;
+  } else {
+    description = `I pacchetti verso ${destination} vengono inoltrati al router ${gateway} tramite l'interfaccia ${iface}.`;
+  }
+
+  details.push(`Rete di destinazione: ${destination}`);
+  details.push(`Prossimo router (next-hop): ${gateway}`);
+  details.push(`Interfaccia di uscita: ${iface}`);
+
+  if (prefixNum <= 24 && prefixNum > 0) {
+    const hosts = Math.pow(2, 32 - prefixNum) - 2;
+    details.push(`Dispositivi in questa rete: ~${hosts.toLocaleString()}`);
+  }
+
+  return { title, description, details, tags };
+};
+
+const generateExpertExplanation = (route, ctx) => {
+  const { destination, gateway, interface: iface, distance, metric } = route;
+  const { proto, prefixNum, network, isNullRoute, isConnected, isHostRoute, tags } = ctx;
+
+  let title, description;
+  const details = [];
+
+  if (route.is_default) {
+    title = 'Default Route (0.0.0.0/0)';
+    description = `Gateway of last resort: ${gateway} via ${iface}. Matching con Longest Prefix Match (LPM) solo quando nessun prefisso piu' specifico esiste nella RIB/FIB.`;
+    details.push(`Next-hop: ${gateway}`);
+    details.push(`Egress interface: ${iface}`);
+    details.push(`AD: ${distance} | Metric: ${metric}`);
+    details.push(`Protocollo sorgente: ${proto.toUpperCase()}`);
+    details.push('LPM priority: minima (/0) - ultima risorsa nella forwarding table');
+    return { title, description, details, tags };
+  }
+
+  if (isNullRoute) {
+    title = `Null Route / Blackhole (${destination})`;
+    description = `Discard silenzioso per ${destination}. Il traffico matching viene droppato senza generare ICMP unreachable. Usato per: prevenzione routing loop, RTBH (Remotely Triggered Black Hole), o summarization con leak prevention.`;
+    details.push(`Prefix: ${destination}`);
+    details.push(`AD: ${distance} | Metric: ${metric}`);
+    return { title, description, details, tags };
+  }
+
+  if (isHostRoute) {
+    title = `Host Route (${destination})`;
+    description = `Rotta /32 - match esatto per l'host ${network}. Massima priorita' nel LPM. ${isConnected
+      ? `Directly connected su ${iface} (ARP/NDP resolution diretta).`
+      : `Next-hop ${gateway} via ${iface}.`
+    }`;
+    details.push(`Host: ${network}`);
+    details.push(`AD: ${distance} | Metric: ${metric}`);
+    details.push(`Protocollo: ${proto.toUpperCase()}`);
+    details.push('LPM priority: massima (/32)');
+    return { title, description, details, tags };
+  }
+
+  if (isConnected) {
+    title = `Connected Network (${destination})`;
+    description = `Prefix ${destination} direttamente raggiungibile su ${iface}. AD 0 (massima affidabilita'). La risoluzione L2 avviene tramite ARP (IPv4) o NDP (IPv6) senza next-hop intermedio.`;
+    details.push(`Network: ${destination}`);
+    details.push(`Interface: ${iface}`);
+    details.push(`AD: 0 (connected) | Metric: ${metric}`);
+    details.push(`Subnet size: /${prefixNum} = ${Math.pow(2, 32 - prefixNum) - 2} usable hosts`);
+    return { title, description, details, tags };
+  }
+
+  const protoUpper = proto.toUpperCase();
+  title = `${protoUpper} Route: ${destination}`;
+
+  if (proto === 'static') {
+    description = `Rotta statica verso ${destination} via ${gateway} (${iface}). AD ${distance}, non dipende da protocolli di routing dinamici. Persistente nella configurazione, ma puo' essere condizionata da IP SLA o interface tracking.`;
+  } else if (proto === 'ospf') {
+    description = `Rotta OSPF verso ${destination} via ${gateway} (${iface}). AD ${distance}, metrica ${metric} (costo cumulativo basato su bandwidth dei link attraversati). Calcolata con SPF (Dijkstra) sull'LSDB.`;
+  } else if (proto === 'bgp') {
+    description = `Rotta BGP verso ${destination} via ${gateway} (${iface}). AD ${distance} ${distance === 20 ? '(eBGP)' : distance === 200 ? '(iBGP)' : ''}. Best path selezionato tramite: Weight > LOCAL_PREF > AS-PATH length > Origin > MED > eBGP over iBGP > IGP metric > Router-ID.`;
+  } else {
+    description = `Rotta ${protoUpper} verso ${destination} via ${gateway} (${iface}). AD ${distance}, metrica ${metric}.`;
+  }
+
+  details.push(`Prefix: ${destination}`);
+  details.push(`Next-hop: ${gateway}`);
+  details.push(`Egress: ${iface}`);
+  details.push(`AD: ${distance} | Metric: ${metric}`);
+  if (prefixNum > 0 && prefixNum <= 30) {
+    details.push(`Subnet: /${prefixNum} = ${(Math.pow(2, 32 - prefixNum) - 2).toLocaleString()} usable hosts`);
+  }
+
+  return { title, description, details, tags };
+};
+
+// --- ROUTE EXPLANATION UI COMPONENTS ---
+
+const RouteExplanationPanel = memo(({ route, mode }) => {
+  const explanation = useMemo(() => generateRouteExplanation(route, mode), [route, mode]);
+  const protoStyle = getProtocolStyle(route.protocol);
+
+  const tagColors = {
+    'Default Route': 'bg-rose-50 text-rose-700 border-rose-200',
+    'Host Route': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    'Null Route': 'bg-slate-200 text-slate-700 border-slate-300',
+    'Directly Connected': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'CONNECTED': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    'STATIC': 'bg-amber-50 text-amber-700 border-amber-200',
+    'OSPF': 'bg-violet-50 text-violet-700 border-violet-200',
+    'BGP': 'bg-cyan-50 text-cyan-700 border-cyan-200',
+  };
+
+  const getPortIcon = (port) => {
+    if (!port || port === 'ANY') return <Cpu size={12} />;
+    const p = String(port).split(',')[0];
+    if (['80', '443', '8080'].includes(p)) return <Globe size={12} />;
+    if (['22', '21', '23'].includes(p)) return <Shield size={12} />;
+    if (['53'].includes(p)) return <Network size={12} />;
+    return <Cpu size={12} />;
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: 'auto' }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+      className="overflow-hidden"
+    >
+      <div className={cn(
+        "mx-4 mb-6 p-6 rounded-[2rem] border transition-all duration-300",
+        mode === 'simple'
+          ? "bg-white border-blue-100 shadow-sm"
+          : "bg-slate-50 border-slate-200 shadow-sm"
+      )}>
+        <div className="flex flex-col lg:grid lg:grid-cols-[1fr_1.4fr] gap-8">
+          {/* Left Column: Essential Explanation */}
+          <div className="space-y-5">
+            <div className="flex items-start gap-4">
+              <div className={cn(
+                "p-3 rounded-2xl shrink-0 transition-all",
+                mode === 'simple' ? "bg-blue-50 text-blue-600" : "bg-slate-200 text-slate-600"
+              )}>
+                {mode === 'simple'
+                  ? <MessageCircleQuestion size={20} />
+                  : <Wrench size={20} />
+                }
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <h4 className="text-lg font-black text-slate-900 tracking-tight">{explanation.title}</h4>
+                  <div className="flex flex-wrap gap-1">
+                    {explanation.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className={cn(
+                          "text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+                          tagColors[tag] || "bg-slate-100 text-slate-600 border-slate-200"
+                        )}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <p className={cn(
+                  "text-sm leading-relaxed",
+                  mode === 'simple' ? "text-slate-600" : "text-slate-500 font-mono"
+                )}>
+                  {explanation.description}
+                </p>
+              </div>
+            </div>
+
+            {explanation.details.length > 0 && (
+              <div className="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+                {explanation.details.map((detail, i) => (
+                  <span
+                    key={i}
+                    className="text-[10px] font-bold text-slate-500 bg-white px-2.5 py-1 rounded-lg border border-slate-100 shadow-sm"
+                  >
+                    {detail}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Lightweight Visual Path */}
+          <div className="bg-slate-50/50 rounded-2xl p-5 border border-slate-100 relative group">
+            <div className="flex items-center justify-between mb-6">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <Activity size={12} className="text-slate-300" />
+                Dettaglio Percorso
+              </span>
+              <div className={cn(
+                "px-2.5 py-1 rounded-full border text-[9px] font-black uppercase tracking-widest",
+                protoStyle.bg, protoStyle.text, protoStyle.border
+              )}>
+                {route.protocol || 'N/D'}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 relative">
+              {/* Thin Connection Line */}
+              <div className="absolute top-7 left-[20%] right-[20%] h-[1px] bg-slate-200 -z-0" />
+
+              {/* Node 1: Origin */}
+              <div className="relative z-10 flex flex-col items-center gap-2">
+                <div className="w-14 h-14 bg-white border border-slate-200 rounded-xl flex items-center justify-center shadow-sm group-hover:border-blue-200 transition-colors">
+                  <Globe size={24} className="text-blue-500" />
+                </div>
+                <div className="text-center">
+                  <div className="text-[9px] font-black text-slate-400 uppercase mb-0.5">Dest</div>
+                  <div className="text-[10px] font-bold text-slate-700 font-mono">{route.destination}</div>
+                </div>
+              </div>
+
+              {/* Path Link 1 */}
+              <div className="flex flex-col items-center">
+                 <div className="text-[8px] font-black text-slate-300 uppercase mb-1">AD {route.distance ?? 0}</div>
+                 <ChevronRight size={16} className="text-slate-300" />
+              </div>
+
+              {/* Node 2: Firewall (Central) */}
+              <div className="relative z-10 flex flex-col items-center gap-2">
+                <div className="w-14 h-14 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-center shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
+                  <Shield size={24} className="group-hover:text-white transition-colors" />
+                </div>
+                <div className="text-center">
+                  <div className="text-[9px] font-black text-slate-400 uppercase mb-0.5">Firewall</div>
+                  <div className="px-2 py-0.5 rounded-md bg-indigo-50 text-[9px] font-black text-indigo-700 border border-indigo-100">
+                    {route.interface || '---'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Path Link 2 */}
+              <div className="flex flex-col items-center">
+                 <div className="text-[8px] font-black text-slate-300 uppercase mb-1">MET {route.metric ?? 0}</div>
+                 <ChevronRight size={16} className="text-slate-300" />
+              </div>
+
+              {/* Node 3: Next Hop */}
+              <div className="relative z-10 flex flex-col items-center gap-2">
+                <div className="w-14 h-14 bg-white border border-slate-200 rounded-xl flex items-center justify-center shadow-sm group-hover:border-emerald-200 transition-colors">
+                  <Server size={24} className="text-slate-600" />
+                </div>
+                <div className="text-center">
+                  <div className="text-[9px] font-black text-slate-400 uppercase mb-0.5">Next Hop</div>
+                  <div className="text-[10px] font-bold text-slate-700 font-mono">{route.gateway || '---'}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sub-footer for Ports */}
+            <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between">
+               <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-white border border-slate-100">
+                    {getPortIcon(route.ports || route.port)}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Service Port</span>
+                    <span className="text-[10px] font-bold text-slate-700 mt-1">{route.ports || route.port || 'ANY'}</span>
+                  </div>
+               </div>
+               <div className="flex items-center gap-1.5 opacity-50">
+                  <Zap size={10} className="text-amber-500" />
+                  <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Live Path Analysis</span>
+               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+});
+
+const CidrGlossary = memo(({ isOpen, onToggle }) => (
+  <div>
+    <button
+      onClick={onToggle}
+      className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 transition-colors"
+    >
+      <BookOpen size={14} className="text-indigo-600" />
+      <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">CIDR</span>
+      <ChevronDown size={12} className={cn("text-indigo-400 transition-transform", isOpen && "rotate-180")} />
+    </button>
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.2 }}
+          className="overflow-hidden"
+        >
+          <div className="mt-2 bg-indigo-50/60 border border-indigo-200/60 rounded-2xl p-4">
+            <div className="text-[10px] font-black text-indigo-700 uppercase tracking-widest mb-3">
+              Glossario notazione CIDR
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {CIDR_GLOSSARY.map((item) => (
+                <div key={item.cidr} className="flex items-center gap-3 bg-white rounded-xl px-3 py-2 border border-indigo-100">
+                  <code className="text-sm font-black text-indigo-700 font-mono w-8">{item.cidr}</code>
+                  <div>
+                    <div className="text-[10px] font-bold text-slate-700">{item.desc}</div>
+                    <div className="text-[9px] text-slate-400">{item.hosts} host</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </div>
+));
+
 // --- TAB B: ROUTING MONITOR ---
 const RoutingTab = memo(({ routes, routeProtocols }) => {
+  const [explanationMode, setExplanationMode] = useState('simple');
+  const [expandedRoutes, setExpandedRoutes] = useState(new Set());
+  const [showGlossary, setShowGlossary] = useState(false);
+
+  const toggleRoute = (routeKey) => {
+    setExpandedRoutes(prev => {
+      const next = new Set(prev);
+      if (next.has(routeKey)) next.delete(routeKey);
+      else next.add(routeKey);
+      return next;
+    });
+  };
   const routesByProtocol = useMemo(() => {
     const groups = {};
     (routes || []).forEach((r) => {
@@ -513,30 +1016,74 @@ const RoutingTab = memo(({ routes, routeProtocols }) => {
 
   return (
     <div className="space-y-6">
-      {/* Protocol Summary */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600">
-          Totale: {routes.length}
-        </div>
-        {sortedProtos.map((proto) => {
-          const ps = getProtocolStyle(proto);
-          const count = routesByProtocol[proto].length;
-          return (
-            <div key={proto} className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full border", ps.bg, ps.border)}>
-              <div className={cn("w-2.5 h-2.5 rounded-full", ps.dot)} />
-              <span className={cn("text-[10px] font-black uppercase tracking-wider", ps.text)}>
-                {proto}
-              </span>
-              <span className={cn("text-[11px] font-black", ps.text)}>{count}</span>
+      {/* Toolbar: Protocol Summary + Explanation Mode + CIDR Glossary */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Protocol counts */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600">
+              Totale: {routes.length}
             </div>
-          );
-        })}
+            {sortedProtos.map((proto) => {
+              const ps = getProtocolStyle(proto);
+              const count = routesByProtocol[proto].length;
+              return (
+                <div key={proto} className={cn("flex items-center gap-2 px-3 py-1.5 rounded-full border", ps.bg, ps.border)}>
+                  <div className={cn("w-2.5 h-2.5 rounded-full", ps.dot)} />
+                  <span className={cn("text-[10px] font-black uppercase tracking-wider", ps.text)}>
+                    {proto}
+                  </span>
+                  <span className={cn("text-[11px] font-black", ps.text)}>{count}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Explanation Mode Toggle */}
+          <div className="flex items-center gap-2">
+            <CidrGlossary isOpen={showGlossary} onToggle={() => setShowGlossary(p => !p)} />
+            <div className="flex items-center bg-slate-100 rounded-xl p-0.5 border border-slate-200">
+              <button
+                onClick={() => setExplanationMode('simple')}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                  explanationMode === 'simple'
+                    ? "bg-white text-blue-700 shadow-sm"
+                    : "text-slate-400 hover:text-slate-600"
+                )}
+              >
+                <GraduationCap size={12} />
+                Semplice
+              </button>
+              <button
+                onClick={() => setExplanationMode('expert')}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
+                  explanationMode === 'expert'
+                    ? "bg-white text-slate-700 shadow-sm"
+                    : "text-slate-400 hover:text-slate-600"
+                )}
+              >
+                <Wrench size={12} />
+                Esperto
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Hint */}
+        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold">
+          <MessageCircleQuestion size={12} />
+          Clicca su una rotta per vederne la spiegazione in modalita' {explanationMode === 'simple' ? 'semplice' : 'esperta'}
+        </div>
       </div>
 
       {/* Routes by Protocol */}
       {sortedProtos.map((proto) => {
         const protoRoutes = routesByProtocol[proto];
         const ps = getProtocolStyle(proto);
+        const protoExpl = PROTOCOL_EXPLANATION[proto.toLowerCase()];
+
         return (
           <div key={proto}>
             <div className={cn("flex items-center gap-2 px-4 py-2 rounded-xl mb-2 border", ps.bg, ps.border)}>
@@ -547,11 +1094,17 @@ const RoutingTab = memo(({ routes, routeProtocols }) => {
               <span className={cn("text-[10px] font-black", ps.text)}>
                 {protoRoutes.length} routes
               </span>
+              {protoExpl && (
+                <span className={cn("text-[10px] font-medium ml-2 hidden md:inline", ps.text, "opacity-70")}>
+                  — {explanationMode === 'simple' ? protoExpl.simple : protoExpl.expert}
+                </span>
+              )}
             </div>
             <div className="overflow-x-auto rounded-2xl border border-slate-200">
               <table className="w-full text-sm min-w-[900px]">
                 <thead className="bg-slate-50">
                   <tr className="border-b border-slate-200">
+                    <th className="text-left py-2 px-4 w-8"></th>
                     <th className="text-left py-2 px-4">
                       <span className="px-2 py-1 rounded-full bg-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">Destination</span>
                     </th>
@@ -570,44 +1123,70 @@ const RoutingTab = memo(({ routes, routeProtocols }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {protoRoutes.map((route, idx) => (
-                    <tr
-                      key={idx}
-                      className={cn(
-                        "border-b border-slate-50 hover:bg-slate-50/60 transition-colors",
-                        route.is_default && "bg-red-50/40"
-                      )}
-                    >
-                      <td className="py-2 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className={cn(
-                            "w-1 h-4 rounded-full",
-                            route.is_default ? "bg-red-400" : "bg-slate-200"
-                          )} />
-                          <code className="font-mono font-bold text-xs text-slate-800">
-                          {route.destination}
-                          </code>
-                          {route.is_default && (
-                            <span className="text-[8px] font-black uppercase tracking-widest text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
-                              Default
-                            </span>
+                  {protoRoutes.map((route, idx) => {
+                    const routeKey = `${proto}-${idx}`;
+                    const isExpanded = expandedRoutes.has(routeKey);
+                    return (
+                      <React.Fragment key={idx}>
+                        <tr
+                          onClick={() => toggleRoute(routeKey)}
+                          className={cn(
+                            "border-b border-slate-50 hover:bg-slate-50/60 transition-colors cursor-pointer select-none",
+                            route.is_default && "bg-red-50/40",
+                            isExpanded && "bg-blue-50/30"
                           )}
-                        </div>
-                      </td>
-                      <td className="py-2 px-4">
-                        <code className="font-mono text-xs text-slate-500">{route.gateway}</code>
-                      </td>
-                      <td className="py-2 px-4">
-                        <span className="text-xs font-bold text-slate-600">{route.interface}</span>
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <span className="font-mono text-xs text-slate-500">{route.distance}</span>
-                      </td>
-                      <td className="py-2 px-4 text-right">
-                        <span className="font-mono text-xs text-slate-500">{route.metric}</span>
-                      </td>
-                    </tr>
-                  ))}
+                        >
+                          <td className="py-2 px-2 pl-4">
+                            <ChevronDown
+                              size={14}
+                              className={cn(
+                                "text-slate-300 transition-transform duration-200",
+                                isExpanded && "rotate-180 text-blue-500"
+                              )}
+                            />
+                          </td>
+                          <td className="py-2 px-4">
+                            <div className="flex items-center gap-2">
+                              <span className={cn(
+                                "w-1 h-4 rounded-full",
+                                route.is_default ? "bg-red-400" : "bg-slate-200"
+                              )} />
+                              <code className="font-mono font-bold text-xs text-slate-800">
+                              {route.destination}
+                              </code>
+                              {route.is_default && (
+                                <span className="text-[8px] font-black uppercase tracking-widest text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                                  Default
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2 px-4">
+                            <code className="font-mono text-xs text-slate-500">{route.gateway}</code>
+                          </td>
+                          <td className="py-2 px-4">
+                            <span className="text-xs font-bold text-slate-600">{route.interface}</span>
+                          </td>
+                          <td className="py-2 px-4 text-right">
+                            <span className="font-mono text-xs text-slate-500">{route.distance}</span>
+                          </td>
+                          <td className="py-2 px-4 text-right">
+                            <span className="font-mono text-xs text-slate-500">{route.metric}</span>
+                          </td>
+                        </tr>
+                        {/* Explanation Panel */}
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <tr>
+                              <td colSpan={6} className="p-0">
+                                <RouteExplanationPanel route={route} mode={explanationMode} />
+                              </td>
+                            </tr>
+                          )}
+                        </AnimatePresence>
+                      </React.Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

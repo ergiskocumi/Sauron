@@ -313,7 +313,7 @@ class SystemStatus(SauronBaseModel):
 
     hostname: str = Field("", description="Hostname del firewall")
     serial: str = Field("", description="Numero seriale")
-    model_name: str = Field("", alias="model-name", description="Nome del modello (es. FortiGate-100F)")
+    model_name: str = Field("", alias="model", description="Nome del modello (es. FortiGate-100F)")
     firmware_version: str = Field("", alias="version", description="Versione firmware (es. v7.2.8)")
     uptime: int = Field(0, description="Uptime in secondi")
 

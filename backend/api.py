@@ -27,6 +27,7 @@ import time
 import ipaddress
 import logging
 import re
+from collections import defaultdict
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -83,6 +84,7 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+NODE_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_.\- ]+(?::[A-Za-z0-9_.\- ]+)?$")
 
 
 # =============================================================================
@@ -186,6 +188,14 @@ class SnapshotStatusResponse(BaseModel):
     firewalls_count: Optional[int] = None
 
 
+class SystemInfoResponse(BaseModel):
+    """Informazioni di sistema basate su configurazione."""
+
+    app_name: str
+    app_version: str
+    api_version: str
+
+
 class ScanResponse(BaseModel):
     """Risposta immediata per POST /api/scan."""
 
@@ -211,29 +221,57 @@ class PathRequest(BaseModel):
     @classmethod
     def validate_source(cls, v: str) -> str:
         """Valida formato source: device-id o device-id:vdom."""
-        if not re.match(r'^[\w\-]+(:\w+)?$', v):
+        source = (v or "").strip()
+        if not source:
+            raise ValueError(
+                "Source non puo' essere vuoto."
+            )
+
+        if ":" in source:
+            device_id, vdom = source.split(":", 1)
+            source = f"{device_id.strip()}:{vdom.strip()}"
+            if not device_id.strip() or not vdom.strip():
+                raise ValueError(
+                    "Source deve essere 'device-id' o 'device-id:vdom'."
+                )
+
+        if not NODE_KEY_PATTERN.match(source):
             raise ValueError(
                 "Source deve essere 'device-id' o 'device-id:vdom' "
-                "(solo lettere, numeri, trattini e underscore)"
+                "(consentiti lettere, numeri, spazi, trattini, underscore e punto)"
             )
-        return v
+        return source
 
     @field_validator("destination")
     @classmethod
     def validate_destination(cls, v: str) -> str:
         """Valida che destination sia un indirizzo IP valido o un node_key."""
+        destination = (v or "").strip()
+        if not destination:
+            raise ValueError("Destination non puo' essere vuota.")
+
         # Accetta sia IP puri che node_key (device:vdom)
         try:
-            ipaddress.ip_address(v)
-            return v
+            ip = ipaddress.ip_address(destination)
+            return str(ip)
         except ValueError:
             pass
+
         # Accetta anche node_key per path tra nodi
-        if re.match(r'^[\w\-]+(:\w+)?$', v):
-            return v
+        if ":" in destination:
+            device_id, vdom = destination.split(":", 1)
+            destination = f"{device_id.strip()}:{vdom.strip()}"
+            if not device_id.strip() or not vdom.strip():
+                raise ValueError(
+                    "Destination node_key deve essere nel formato 'device:vdom'."
+                )
+
+        if NODE_KEY_PATTERN.match(destination):
+            return destination
+
         raise ValueError(
             "Destination deve essere un IP valido (es. '10.0.0.1') "
-            "o un node_key (es. 'fw-roma:root')"
+            "o un node_key (es. 'Firewall Milano:root')"
         )
 
     max_ttl: int = Field(
@@ -358,11 +396,23 @@ async def _check_firewall_reachability(cfg: FirewallConfig, timeout: float = 1.5
 @app.get("/")
 async def root():
     """Health check."""
+    settings = get_settings()
     return {
         "service": "Sauron Network Discovery API",
         "status": "running",
-        "version": "0.1.0",
+        "version": settings.app_version,
     }
+
+
+@app.get("/api/system/info", response_model=SystemInfoResponse)
+async def get_system_info():
+    """Restituisce informazioni di sistema da .env."""
+    settings = get_settings()
+    return SystemInfoResponse(
+        app_name=settings.app_name,
+        app_version=settings.app_version,
+        api_version=settings.api_version,
+    )
 
 
 @app.get("/api/inventory", response_model=List[FirewallConfigPublic])
@@ -548,7 +598,7 @@ async def _perform_scan():
 
 
 @app.get("/api/topology", response_model=TopologyResponse)
-async def get_topology():
+async def get_topology(view: str = "directed"):
     """
     Restituisce la topologia completa (nodi e link) da snapshot.
 
@@ -568,46 +618,104 @@ async def get_topology():
     try:
         snapshot = snapshot_repository.load(DEFAULT_SNAPSHOT_PATH)
         topology = snapshot.topology
+        view_mode = (view or "directed").strip().lower()
 
-        # Serializza link con next-hop relationships e metriche avanzate
+        if view_mode not in {"directed", "l2", "subnet", "shared"}:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid view. Supported values: directed, l2, subnet, shared.",
+            )
+
         links_serialized = []
-        for link in topology.links:
-            links_serialized.append({
-                "source": link.source,
-                "target": link.target,
-                "subnet": link.subnet,
-                "source_interface": link.source_interface,
-                "target_ip": link.target_ip,
-                "cost": link.cost,
-                "protocol": link.protocol,
-                "distance": link.distance,
-                "bandwidth_mbps": link.bandwidth_mbps,
-                "latency_ms": link.latency_ms,
-                "reliability": link.reliability,
-                "is_point_to_point": link.is_point_to_point,
-                "endpoints": list(link.endpoints),
-                "endpoint_count": link.endpoint_count,
-                "interfaces": [
-                    {
-                        "device_id": iface.device_id,
-                        "vdom": iface.vdom,
-                        "iface_name": iface.iface_name,
-                        "ip": iface.ip_str,
-                        "prefix_len": iface.prefix_len,
-                        "network_id": iface.network_id,
-                        "is_up": iface.is_up,
-                        "bandwidth_mbps": iface.bandwidth_mbps,
-                        "interface_type": iface.interface_type,
-                    }
-                    for iface in link.interfaces
-                ],
-            })
+        if view_mode in {"l2", "subnet", "shared"}:
+            interfaces = list(snapshot.interfaces or topology.interfaces)
+            if not interfaces:
+                for link in topology.links:
+                    interfaces.extend(link.interfaces)
+
+            buckets = defaultdict(lambda: {"interfaces": [], "nodes": set()})
+            for iface in interfaces:
+                if not iface.is_up or iface.ip == 0 or iface.prefix_len == 32:
+                    continue
+                bucket = buckets[iface.network_id]
+                bucket["interfaces"].append(iface)
+                bucket["nodes"].add(iface.node.node_key)
+
+            for subnet in sorted(buckets.keys()):
+                bucket = buckets[subnet]
+                endpoints = sorted(bucket["nodes"])
+                if len(endpoints) < 2:
+                    continue
+                prefix = int(subnet.split("/", 1)[1]) if "/" in subnet else 0
+                links_serialized.append({
+                    "source": None,
+                    "target": None,
+                    "subnet": subnet,
+                    "source_interface": None,
+                    "target_ip": None,
+                    "cost": 1,
+                    "protocol": "connected",
+                    "distance": 0,
+                    "bandwidth_mbps": None,
+                    "latency_ms": None,
+                    "reliability": None,
+                    "is_point_to_point": prefix >= 30,
+                    "endpoints": endpoints,
+                    "endpoint_count": len(endpoints),
+                    "interfaces": [
+                        {
+                            "device_id": iface.device_id,
+                            "vdom": iface.vdom,
+                            "iface_name": iface.iface_name,
+                            "ip": iface.ip_str,
+                            "prefix_len": iface.prefix_len,
+                            "network_id": iface.network_id,
+                            "is_up": iface.is_up,
+                            "bandwidth_mbps": iface.bandwidth_mbps,
+                            "interface_type": iface.interface_type,
+                        }
+                        for iface in bucket["interfaces"]
+                    ],
+                })
+        else:
+            # Vista canonical troubleshooting: link diretti da routing/next-hop.
+            for link in topology.links:
+                links_serialized.append({
+                    "source": link.source,
+                    "target": link.target,
+                    "subnet": link.subnet,
+                    "source_interface": link.source_interface,
+                    "target_ip": link.target_ip,
+                    "cost": link.cost,
+                    "protocol": link.protocol,
+                    "distance": link.distance,
+                    "bandwidth_mbps": link.bandwidth_mbps,
+                    "latency_ms": link.latency_ms,
+                    "reliability": link.reliability,
+                    "is_point_to_point": link.is_point_to_point,
+                    "endpoints": sorted(link.get_endpoints()),
+                    "endpoint_count": link.endpoint_count,
+                    "interfaces": [
+                        {
+                            "device_id": iface.device_id,
+                            "vdom": iface.vdom,
+                            "iface_name": iface.iface_name,
+                            "ip": iface.ip_str,
+                            "prefix_len": iface.prefix_len,
+                            "network_id": iface.network_id,
+                            "is_up": iface.is_up,
+                            "bandwidth_mbps": iface.bandwidth_mbps,
+                            "interface_type": iface.interface_type,
+                        }
+                        for iface in link.interfaces
+                    ],
+                })
 
         return TopologyResponse(
             nodes=list(topology.nodes),
             links=links_serialized,
             node_count=topology.node_count,
-            link_count=topology.link_count,
+            link_count=len(links_serialized),
         )
 
     except (SnapshotNotFoundError, SnapshotCorruptedError) as e:
@@ -774,6 +882,7 @@ class SystemStatusPublic(BaseModel):
     firmware_version: str = ""
     uptime: int = 0
     uptime_human: str = ""
+    last_sync: Optional[str] = None
 
 
 class SystemResourcePublic(BaseModel):
@@ -829,6 +938,8 @@ class VdomDetailFull(BaseModel):
 class FirewallDetailResponse(BaseModel):
     """Risposta completa del dettaglio di un singolo firewall."""
     device_id: str
+    live_data_available: bool = True
+    live_error: Optional[str] = None
     system_status: SystemStatusPublic
     system_resources: SystemResourcePublic
     vdoms: List[VdomDetailFull]
@@ -838,7 +949,7 @@ class FirewallDetailResponse(BaseModel):
 
 
 @app.get("/api/firewall/{device_id}/detail", response_model=FirewallDetailResponse)
-async def get_firewall_detail(device_id: str):
+async def get_firewall_detail(device_id: str, strict_live: bool = False):
     """
     Restituisce il dettaglio completo di un singolo firewall.
 
@@ -894,6 +1005,8 @@ async def get_firewall_detail(device_id: str):
     system_resources = SystemResourcePublic()
     vdom_policies: Dict[str, List[FirewallPolicy]] = {}
     vdom_objects: Dict[str, List[AddressObject]] = {}
+    live_data_available = True
+    live_error: Optional[str] = None
 
     try:
         async with FortiGateClient(fw_config.host, fw_config.token) as client:
@@ -914,6 +1027,7 @@ async def get_firewall_detail(device_id: str):
                     firmware_version=status_result.firmware_version,
                     uptime=status_result.uptime,
                     uptime_human=status_result.uptime_human,
+                    last_sync=datetime.now().strftime("%H:%M:%S"),
                 )
             else:
                 logger.warning(f"Failed to get system status: {status_result}")
@@ -974,7 +1088,14 @@ async def get_firewall_detail(device_id: str):
                     vdom_objects[vdom] = []
 
     except Exception as e:
+        live_data_available = False
+        live_error = str(e)
         logger.warning(f"Could not connect to firewall {device_id} for live data: {e}")
+        if strict_live:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Live data unavailable for firewall '{device_id}': {e}",
+            )
 
     # 4. Componi risposta finale
     vdoms_full: List[VdomDetailFull] = []
@@ -1071,6 +1192,8 @@ async def get_firewall_detail(device_id: str):
 
     return FirewallDetailResponse(
         device_id=device_id,
+        live_data_available=live_data_available,
+        live_error=live_error,
         system_status=system_status,
         system_resources=system_resources,
         vdoms=vdoms_full,

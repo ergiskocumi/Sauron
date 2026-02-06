@@ -87,9 +87,11 @@ class ScanService:
         return await topology_service.build_from_firewalls(clients)
 
     def _create_snapshot(self, topology, routing_tables, enabled_configs):
-        all_interfaces = []
-        for link in topology.links:
-            all_interfaces.extend(link.interfaces)
+        all_interfaces = list(topology.interfaces)
+        if not all_interfaces:
+            # Backward compatibility con topologie legacy.
+            for link in topology.links:
+                all_interfaces.extend(link.interfaces)
 
         firewalls_metadata = []
         for config in enabled_configs:
