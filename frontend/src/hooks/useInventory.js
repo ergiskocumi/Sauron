@@ -1,59 +1,79 @@
-/**
- * USE INVENTORY HOOK - State Management
- *
- * Custom hook per gestire il ciclo di vita del fetching dell'inventario.
- * Incapsula la logica di loading, error e data in un unico hook riutilizzabile.
- *
- * Pattern Applicato:
- * - Custom Hook: Riutilizzabilità della logica di fetching
- * - Separation of Concerns: Il componente non deve gestire gli stati interni
- *
- * Uso:
- *   const { inventory, loading, error, refetch } = useInventory();
- *
- * Stati:
- * - loading: true durante il fetch iniziale
- * - error: stringa con messaggio errore o null
- * - inventory: array di firewall o []
- * - refetch: funzione per ricaricare i dati
- */
-
-import { useState, useEffect } from 'react';
-import { getInventory } from '../services/inventoryService';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { getInventory, getInventoryHealth } from '../services/inventoryService';
 
 export const useInventory = () => {
   const [inventory, setInventory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [healthById, setHealthById] = useState({});
+  const [healthError, setHealthError] = useState(null);
+  const healthTimerRef = useRef(null);
 
-  /**
-   * Funzione di fetch con gestione completa degli stati
-   */
-  const fetchInventory = async () => {
+  const fetchInventory = useCallback(async (signal) => {
     try {
       setLoading(true);
       setError(null);
 
       const data = await getInventory();
-      setInventory(data);
-    } catch (err) {
-      setError(err.message);
-      setInventory([]);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  /**
-   * Fetch automatico al mount del componente
-   */
-  useEffect(() => {
-    fetchInventory();
+      if (!signal?.aborted) {
+        setInventory(data);
+      }
+    } catch (err) {
+      if (!signal?.aborted) {
+        setError(err.message);
+        setInventory([]);
+      }
+    } finally {
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
+    }
   }, []);
 
-  /**
-   * Funzione per ricaricare manualmente i dati
-   */
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchInventory(controller.signal);
+    return () => controller.abort();
+  }, [fetchInventory]);
+
+  const fetchHealth = useCallback(async () => {
+    try {
+      setHealthError(null);
+      const data = await getInventoryHealth();
+      const map = Array.isArray(data)
+        ? data.reduce((acc, item) => {
+            acc[item.id] = item;
+            return acc;
+          }, {})
+        : {};
+      setHealthById(map);
+    } catch (err) {
+      setHealthError(err.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!inventory.length) {
+      setHealthById({});
+      return;
+    }
+
+    fetchHealth();
+
+    if (healthTimerRef.current) {
+      clearInterval(healthTimerRef.current);
+    }
+    healthTimerRef.current = setInterval(fetchHealth, 15000);
+
+    return () => {
+      if (healthTimerRef.current) {
+        clearInterval(healthTimerRef.current);
+        healthTimerRef.current = null;
+      }
+    };
+  }, [inventory.length, fetchHealth]);
+
   const refetch = () => {
     fetchInventory();
   };
@@ -62,6 +82,8 @@ export const useInventory = () => {
     inventory,
     loading,
     error,
+    healthById,
+    healthError,
     refetch,
   };
 };

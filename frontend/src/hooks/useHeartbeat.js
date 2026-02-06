@@ -1,26 +1,43 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
+import apiClient from '../api/client';
 
 export const useHeartbeat = (firewalls = []) => {
   const [statuses, setStatuses] = useState({});
+  const prevStatusesRef = useRef({});
 
-  const checkStatus = useCallback(async (firewall) => {
+  const checkStatus = useCallback(async (firewall, signal) => {
     try {
-      // In a real scenario, we might have a lightweight ping endpoint
-      // For now, we'll just check if they respond to a basic info request
-      // This is just a simulation of the "Heartbeat" logic requested
-      const response = await fetch(`/api/inventory`); 
-      // Note: Ideally the backend has a /api/ping/{id}
-      
-      if (response.ok) {
-        setStatuses(prev => ({ ...prev, [firewall.id]: 'online' }));
-      } else {
-        throw new Error('Unreachable');
-      }
+      await apiClient.get('/api/inventory', { signal });
+
+      setStatuses(prev => {
+        const newStatuses = { ...prev, [firewall.id]: 'online' };
+
+        // Notifica solo su cambio di stato da offline a online
+        if (prevStatusesRef.current[firewall.id] === 'offline') {
+          toast.success(`Firewall ${firewall.id} tornato online`, {
+            id: `hb-${firewall.id}`,
+          });
+        }
+
+        prevStatusesRef.current = newStatuses;
+        return newStatuses;
+      });
     } catch (error) {
-      setStatuses(prev => ({ ...prev, [firewall.id]: 'offline' }));
-      toast.error(`Firewall ${firewall.name || firewall.host} non raggiungibile!`, {
-        id: `hb-${firewall.id}`, // Prevent multiple toasts for same FW
+      if (signal?.aborted) return;
+
+      setStatuses(prev => {
+        const newStatuses = { ...prev, [firewall.id]: 'offline' };
+
+        // Notifica solo sul primo cambio a offline
+        if (prevStatusesRef.current[firewall.id] !== 'offline') {
+          toast.error(`Firewall ${firewall.id} non raggiungibile`, {
+            id: `hb-${firewall.id}`,
+          });
+        }
+
+        prevStatusesRef.current = newStatuses;
+        return newStatuses;
       });
     }
   }, []);
@@ -28,16 +45,21 @@ export const useHeartbeat = (firewalls = []) => {
   useEffect(() => {
     if (firewalls.length === 0) return;
 
+    const controller = new AbortController();
+
     const runChecks = () => {
       firewalls.forEach(fw => {
-        if (fw.enabled) checkStatus(fw);
+        if (fw.enabled) checkStatus(fw, controller.signal);
       });
     };
 
     runChecks();
-    const interval = setInterval(runChecks, 60000); // Every 60 seconds
+    const interval = setInterval(runChecks, 60000);
 
-    return () => clearInterval(interval);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, [firewalls, checkStatus]);
 
   return statuses;

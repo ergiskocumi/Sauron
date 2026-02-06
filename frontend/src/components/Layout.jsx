@@ -14,6 +14,7 @@ import {
   User
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { TABS } from '../constants';
 
 const SIDEBAR_TRANSITION = { type: "spring", stiffness: 300, damping: 30 };
 
@@ -71,22 +72,22 @@ export const Layout = ({ children, activeTab, setActiveTab }) => {
           <NavItem
             icon={<MapIcon size={22} />}
             label="Dashboard Map"
-            active={activeTab === 'map'}
-            onClick={() => setActiveTab('map')}
+            active={activeTab === TABS.MAP}
+            onClick={() => setActiveTab(TABS.MAP)}
             isExpanded={isSidebarHovered}
           />
           <NavItem
             icon={<Database size={22} />}
             label="Inventory"
-            active={activeTab === 'inventory'}
-            onClick={() => setActiveTab('inventory')}
+            active={activeTab === TABS.INVENTORY}
+            onClick={() => setActiveTab(TABS.INVENTORY)}
             isExpanded={isSidebarHovered}
           />
           <NavItem
             icon={<Zap size={22} />}
             label="Path Simulation"
-            active={activeTab === 'simulation'}
-            onClick={() => setActiveTab('simulation')}
+            active={activeTab === TABS.SIMULATION}
+            onClick={() => setActiveTab(TABS.SIMULATION)}
             isExpanded={isSidebarHovered}
           />
           <div className="pt-4 pb-2 border-t border-slate-800 mx-2">
@@ -101,8 +102,8 @@ export const Layout = ({ children, activeTab, setActiveTab }) => {
           <NavItem
             icon={<Settings size={22} />}
             label="Configurations"
-            active={activeTab === 'settings'}
-            onClick={() => setActiveTab('settings')}
+            active={activeTab === TABS.SETTINGS}
+            onClick={() => setActiveTab(TABS.SETTINGS)}
             isExpanded={isSidebarHovered}
           />
         </nav>

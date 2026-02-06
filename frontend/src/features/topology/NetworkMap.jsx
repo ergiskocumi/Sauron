@@ -20,13 +20,17 @@ import {
   HostIcon,
   CloudIcon
 } from './Icons';
-import { Shield, RefreshCw, Layers, MousePointer2, Target, Zap, X, Info, Activity } from 'lucide-react';
+import { Shield, RefreshCw, Layers, MousePointer2, Target, Zap, X, Info, Activity, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 import { usePath } from '../../hooks/usePath';
 import { formatNodesForDropdown } from '../../services/pathService';
 import { PathSimulationPanel } from './PathSimulationPanel';
+import { SingleFirewallView } from './SingleFirewallView';
+import { getFirewallTopology } from '../../services/topologyService';
+import { VIEW_MODES } from '../../constants';
+import apiClient from '../../api/client';
 
 // Configuration Constants (Moved outside to prevent re-renders)
 const FIT_VIEW_OPTIONS = { padding: 0.2 };
@@ -378,7 +382,14 @@ export const NetworkMap = () => {
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([])
+  const [searchResults, setSearchResults] = useState([]);
+
+  // View mode state (full topology vs single firewall)
+  const [viewMode, setViewMode] = useState(VIEW_MODES.FULL_TOPOLOGY);
+  const [selectedFirewall, setSelectedFirewall] = useState('');
+  const [firewallData, setFirewallData] = useState(null);
+  const [firewallLoading, setFirewallLoading] = useState(false);
+  const [excludeDefault, setExcludeDefault] = useState(true);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -391,19 +402,8 @@ export const NetworkMap = () => {
     try {
       if (!isInitial) setIsLoading(true);
 
-      const response = await fetch('http://localhost:8000/api/topology');
-
-      // Check if response is JSON before parsing
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('No snapshot available. Run a network scan first.');
-      }
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch topology');
-      }
-
-      const data = await response.json();
+      const response = await apiClient.get('/api/topology');
+      const data = response.data;
 
       // Transform backend data to items React Flow understands
       // Backend returns nodes as strings like "fw-milano:root"
@@ -497,8 +497,8 @@ export const NetworkMap = () => {
   useEffect(() => {
     const checkUpdate = async () => {
       try {
-        const res = await fetch('/api/snapshot/status');
-        const status = await res.json();
+        const res = await apiClient.get('/api/snapshot/status');
+        const status = res.data;
 
         if (status.exists) {
           // If the snapshot is very new (less than 10 seconds), maybe we should refresh
@@ -688,6 +688,56 @@ export const NetworkMap = () => {
     }
   }, [selectionStage, sourceNode, handleCalculatePath, setNodes, pathResult, handleResetPath]);
 
+  // Extract unique device IDs from available nodes
+  const availableDevices = useMemo(() => {
+    const devices = new Set();
+    availableNodes.forEach((nodeKey) => {
+      const deviceId = nodeKey.split(':')[0];
+      devices.add(deviceId);
+    });
+    return Array.from(devices).sort();
+  }, [availableNodes]);
+
+  // Load single firewall topology
+  const handleSelectFirewall = useCallback(async (deviceId) => {
+    if (!deviceId) return;
+    setSelectedFirewall(deviceId);
+    setFirewallLoading(true);
+    try {
+      const data = await getFirewallTopology(deviceId, excludeDefault);
+      setFirewallData(data);
+      setViewMode(VIEW_MODES.SINGLE_FIREWALL);
+    } catch (err) {
+      toast.error(err.message || 'Errore nel caricamento della vista firewall');
+    } finally {
+      setFirewallLoading(false);
+    }
+  }, [excludeDefault]);
+
+  // Back to full topology
+  const handleBackToFullTopology = useCallback(() => {
+    setViewMode(VIEW_MODES.FULL_TOPOLOGY);
+    setSelectedFirewall('');
+    setFirewallData(null);
+  }, []);
+
+  // Toggle exclude default route and reload
+  const handleToggleExcludeDefault = useCallback(async () => {
+    const newValue = !excludeDefault;
+    setExcludeDefault(newValue);
+    if (selectedFirewall && viewMode === VIEW_MODES.SINGLE_FIREWALL) {
+      setFirewallLoading(true);
+      try {
+        const data = await getFirewallTopology(selectedFirewall, newValue);
+        setFirewallData(data);
+      } catch (err) {
+        toast.error(err.message || 'Errore nel ricaricamento');
+      } finally {
+        setFirewallLoading(false);
+      }
+    }
+  }, [excludeDefault, selectedFirewall, viewMode]);
+
   // Show error state if no snapshot
   if (error && !isLoading) {
     return (
@@ -707,6 +757,18 @@ export const NetworkMap = () => {
           </button>
         </div>
       </div>
+    );
+  }
+
+  // Single Firewall View mode
+  if (viewMode === VIEW_MODES.SINGLE_FIREWALL && firewallData) {
+    return (
+      <SingleFirewallView
+        firewallData={firewallData}
+        onBack={handleBackToFullTopology}
+        excludeDefault={excludeDefault}
+        onToggleExcludeDefault={handleToggleExcludeDefault}
+      />
     );
   }
 
@@ -796,14 +858,14 @@ export const NetworkMap = () => {
         <Panel position="top-right">
           <div className="flex flex-col gap-3">
             <div className="bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200 shadow-xl flex gap-1">
-              <button 
+              <button
                 onClick={() => onLayout('TB')}
                 className="px-4 py-2 hover:bg-slate-100 rounded-xl text-[10px] font-bold text-slate-600 uppercase tracking-widest transition-all flex items-center gap-2"
               >
                 <Layers size={14} />
                 Vertical
               </button>
-              <button 
+              <button
                 onClick={() => onLayout('LR')}
                 className="px-4 py-2 hover:bg-slate-100 rounded-xl text-[10px] font-bold text-slate-600 uppercase tracking-widest transition-all flex items-center gap-2"
               >
@@ -811,7 +873,36 @@ export const NetworkMap = () => {
                 Horizontal
               </button>
             </div>
-            
+
+            {/* Single Firewall View Selector */}
+            {availableDevices.length > 0 && (
+              <div className="bg-white/95 backdrop-blur-md rounded-2xl border border-slate-200 shadow-xl p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Eye size={14} className="text-violet-600" />
+                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+                    Firewall View
+                  </span>
+                </div>
+                <select
+                  value={selectedFirewall}
+                  onChange={(e) => handleSelectFirewall(e.target.value)}
+                  disabled={firewallLoading}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
+                >
+                  <option value="">Select firewall...</option>
+                  {availableDevices.map((deviceId) => (
+                    <option key={deviceId} value={deviceId}>{deviceId}</option>
+                  ))}
+                </select>
+                {firewallLoading && (
+                  <div className="mt-2 flex items-center gap-2 text-[10px] text-violet-500 font-bold">
+                    <div className="w-3 h-3 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+                    Loading...
+                  </div>
+                )}
+              </div>
+            )}
+
             <button
               onClick={() => fetchTopology()}
               disabled={isLoading}

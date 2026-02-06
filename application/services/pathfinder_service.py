@@ -56,6 +56,7 @@ class PathfinderService:
         target_ip: str,
         max_ttl: int = 64,
         initial_ingress: Optional[str] = None,
+        exclude_default_route: bool = False,
     ) -> PathResult:
         """
         Simula il percorso di un pacchetto dalla sorgente alla destinazione.
@@ -150,7 +151,9 @@ class PathfinderService:
                     exit_point=node_key,
                 )
 
-            matched_route = self._longest_prefix_match(routes, target_ip_int)
+            matched_route = self._longest_prefix_match(
+                routes, target_ip_int, exclude_default=exclude_default_route
+            )
 
             if matched_route is None:
                 logger.debug(f"No route to {target_ip} from {node_key}")
@@ -328,6 +331,7 @@ class PathfinderService:
         self,
         routes: List[Route],
         target_ip: int,
+        exclude_default: bool = False,
     ) -> Optional[Route]:
         """
         Trova la rotta con prefix piu' lungo che contiene target_ip.
@@ -340,14 +344,19 @@ class PathfinderService:
         Args:
             routes: Lista di Route
             target_ip: IP target come uint32
+            exclude_default: Se True, esclude le default route (0.0.0.0/0)
 
         Returns:
             Route matchata o None
         """
+        filtered = routes
+        if exclude_default:
+            filtered = [r for r in routes if not r.is_default_route]
+
         # Sort routes by prefix length DESC (longest first)
         # Parse destination to get prefix length
         sorted_routes = sorted(
-            routes,
+            filtered,
             key=lambda r: self._get_prefix_len(r.destination),
             reverse=True,
         )

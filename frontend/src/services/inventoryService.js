@@ -14,6 +14,7 @@
  */
 
 import apiClient from '../api/client';
+import { extractErrorMessage } from '../utils/errors';
 
 /**
  * Recupera la lista completa dei firewall dall'inventario
@@ -37,7 +38,39 @@ export const getInventory = async () => {
     return response.data;
   } catch (error) {
     console.error('[InventoryService] Failed to fetch inventory:', error);
-    throw new Error(error.userMessage || 'Errore nel caricamento dell\'inventario');
+    throw new Error(extractErrorMessage(error, 'Errore nel caricamento dell\'inventario'));
+  }
+};
+
+/**
+ * Recupera lo stato live di raggiungibilità dei firewall
+ *
+ * @returns {Promise<Array>} Lista con stati { id, reachable, latency_ms, error, checked_at }
+ * @throws {Error} Se la richiesta fallisce
+ */
+export const getInventoryHealth = async () => {
+  try {
+    const response = await apiClient.get('/api/inventory/health');
+    return response.data;
+  } catch (error) {
+    console.error('[InventoryService] Failed to fetch inventory health:', error);
+    throw new Error(extractErrorMessage(error, 'Errore nel controllo stato firewall'));
+  }
+};
+
+/**
+ * Aggiunge un nuovo firewall all'inventario
+ *
+ * @param {Object} firewall - Dati del firewall { id, host, token }
+ * @returns {Promise<Object>} Risposta con status, message e firewall aggiunto
+ * @throws {Error} Se la richiesta fallisce (duplicato, validazione, ecc.)
+ */
+export const addFirewall = async (firewall) => {
+  try {
+    const response = await apiClient.post('/api/inventory', firewall);
+    return response.data;
+  } catch (error) {
+    throw new Error(extractErrorMessage(error, 'Errore nell\'aggiunta del firewall'));
   }
 };
 
