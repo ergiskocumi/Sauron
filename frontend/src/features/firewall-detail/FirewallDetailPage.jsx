@@ -769,8 +769,39 @@ export const FirewallDetailPage = ({ firewallId, onBack }) => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-32">
-        <LoadingSpinner message="Caricamento dettaglio firewall..." />
+      <div className="flex flex-col items-center justify-center py-24 px-6">
+        <div className="w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-xl shadow-slate-200/50 p-8">
+          <div className="flex flex-col items-center text-center">
+            <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center mb-4">
+              <RefreshCw size={22} className="text-blue-600 animate-spin" />
+            </div>
+            <h2 className="text-lg font-black text-slate-900">Caricamento dettaglio firewall</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              Stiamo recuperando lo stato live e i dati di configurazione.
+            </p>
+            <div className="mt-6">
+              <LoadingSpinner message="Sincronizzazione in corso..." />
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+              Suggerimenti rapidi
+            </div>
+            <div className="mt-3 grid gap-2">
+              <div className="flex items-center gap-3 bg-slate-50/80 border border-slate-100 rounded-2xl px-4 py-3">
+                <Wifi size={16} className="text-emerald-500" />
+                <span className="text-sm text-slate-700">Assicurati che la VPN sia attiva</span>
+                <span className="ml-auto text-[10px] text-slate-400 font-bold uppercase tracking-widest">consigliato</span>
+              </div>
+              <div className="flex items-center gap-3 bg-slate-50/80 border border-slate-100 rounded-2xl px-4 py-3">
+                <WifiOff size={16} className="text-amber-500" />
+                <span className="text-sm text-slate-700">Se il caricamento è lento, prova a ricaricare</span>
+                <span className="ml-auto text-[10px] text-slate-400 font-bold uppercase tracking-widest">timeout</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
