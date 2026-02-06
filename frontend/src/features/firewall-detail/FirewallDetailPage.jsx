@@ -873,6 +873,24 @@ export const FirewallDetailPage = ({ firewallId, onBack }) => {
     setActiveTab(TABS.INTERFACES);
   };
 
+  const tabMeta = useMemo(() => {
+    if (!currentVdom) return null;
+
+    const counts = {
+      [TABS.INTERFACES]: currentVdom.interfaces?.length || 0,
+      [TABS.ROUTES]: currentVdom.routes?.length || 0,
+      [TABS.POLICIES]: currentVdom.policies?.length || 0,
+      [TABS.OBJECTS]: currentVdom.address_objects?.length || 0,
+    };
+
+    const config = TAB_CONFIG.find((tab) => tab.id === activeTab);
+    return {
+      label: config?.label || '',
+      Icon: config?.icon,
+      count: counts[activeTab] ?? 0,
+    };
+  }, [currentVdom, activeTab]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-24 px-6">
@@ -1022,6 +1040,17 @@ export const FirewallDetailPage = ({ firewallId, onBack }) => {
 
           {/* Tab Content */}
           <div className="p-4 md:p-6">
+            {tabMeta && tabMeta.Icon && (
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <tabMeta.Icon size={16} className="text-blue-600" />
+                  <span className="text-sm font-black text-slate-900">{tabMeta.label}</span>
+                </div>
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  {tabMeta.count} elementi
+                </div>
+              </div>
+            )}
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeTab}
