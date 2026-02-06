@@ -382,77 +382,95 @@ const InterfacesTab = memo(({ interfaces }) => {
     return <EmptyTabState message="Nessuna interfaccia configurata in questo VDOM." />;
   }
 
+  const total = interfaces.length;
+  const upCount = interfaces.filter((iface) => iface.is_up).length;
+  const downCount = total - upCount;
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200">
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        <div className="px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600">
+          Totale: {total}
+        </div>
+        <div className="px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-black uppercase tracking-widest text-emerald-700">
+          Up: {upCount}
+        </div>
+        <div className="px-3 py-1.5 rounded-full bg-red-50 border border-red-200 text-[10px] font-black uppercase tracking-widest text-red-700">
+          Down: {downCount}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-slate-200">
+        <table className="w-full text-sm min-w-[900px]">
+          <thead className="bg-slate-50">
+            <tr className="border-b border-slate-200">
             <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
             <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Interface</th>
             <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">IP / CIDR</th>
             <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Network</th>
             <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Type</th>
             <th className="text-right py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Bandwidth</th>
-          </tr>
-        </thead>
-        <tbody>
-          {interfaces.map((iface, idx) => {
-            const typeBadge = IFACE_TYPE_BADGE[iface.interface_type?.toLowerCase()];
-            return (
-              <tr
-                key={iface.name || idx}
-                className={cn(
-                  "border-b border-slate-50 transition-colors hover:bg-slate-50/80",
-                  !iface.is_up && "opacity-60"
-                )}
-              >
-                <td className="py-3 px-4">
-                  <div className="flex items-center gap-2">
-                    {iface.is_up ? (
-                      <Wifi size={14} className="text-emerald-500" />
+            </tr>
+          </thead>
+          <tbody>
+            {interfaces.map((iface, idx) => {
+              const typeBadge = IFACE_TYPE_BADGE[iface.interface_type?.toLowerCase()];
+              return (
+                <tr
+                  key={iface.name || idx}
+                  className={cn(
+                    "border-b border-slate-50 transition-colors hover:bg-slate-50/80",
+                    !iface.is_up && "opacity-60"
+                  )}
+                >
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-2">
+                      {iface.is_up ? (
+                        <Wifi size={14} className="text-emerald-500" />
+                      ) : (
+                        <WifiOff size={14} className="text-red-400" />
+                      )}
+                      <span className={cn(
+                        "text-[10px] font-black uppercase tracking-wider",
+                        iface.is_up ? "text-emerald-600" : "text-red-500"
+                      )}>
+                        {iface.is_up ? 'UP' : 'DOWN'}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="font-bold text-slate-900">{iface.name}</span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <code className="font-mono text-slate-600 text-xs bg-slate-50 px-2 py-1 rounded-lg">
+                      {iface.ip}/{iface.prefix_len}
+                    </code>
+                  </td>
+                  <td className="py-3 px-4">
+                    <span className="text-xs font-mono text-slate-400">{iface.network_id}</span>
+                  </td>
+                  <td className="py-3 px-4">
+                    {typeBadge ? (
+                      <span className={cn("text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg border", typeBadge.cls)}>
+                        {typeBadge.label}
+                      </span>
                     ) : (
-                      <WifiOff size={14} className="text-red-400" />
+                      <span className="text-slate-300">---</span>
                     )}
-                    <span className={cn(
-                      "text-[10px] font-black uppercase tracking-wider",
-                      iface.is_up ? "text-emerald-600" : "text-red-500"
-                    )}>
-                      {iface.is_up ? 'UP' : 'DOWN'}
-                    </span>
-                  </div>
-                </td>
-                <td className="py-3 px-4">
-                  <span className="font-bold text-slate-900">{iface.name}</span>
-                </td>
-                <td className="py-3 px-4">
-                  <code className="font-mono text-slate-600 text-xs bg-slate-50 px-2 py-1 rounded-lg">
-                    {iface.ip}/{iface.prefix_len}
-                  </code>
-                </td>
-                <td className="py-3 px-4">
-                  <span className="text-xs font-mono text-slate-400">{iface.network_id}</span>
-                </td>
-                <td className="py-3 px-4">
-                  {typeBadge ? (
-                    <span className={cn("text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg border", typeBadge.cls)}>
-                      {typeBadge.label}
-                    </span>
-                  ) : (
-                    <span className="text-slate-300">---</span>
-                  )}
-                </td>
-                <td className="py-3 px-4 text-right">
-                  {iface.bandwidth_mbps ? (
-                    <span className="text-xs font-bold text-slate-600">{iface.bandwidth_mbps} Mbps</span>
-                  ) : (
-                    <span className="text-slate-300">---</span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    {iface.bandwidth_mbps ? (
+                      <span className="text-xs font-bold text-slate-600">{iface.bandwidth_mbps} Mbps</span>
+                    ) : (
+                      <span className="text-slate-300">---</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 });
@@ -512,10 +530,10 @@ const RoutingTab = memo(({ routes, routeProtocols }) => {
                 {proto} ({protoRoutes.length})
               </span>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-100">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full text-sm min-w-[900px]">
+                <thead className="bg-slate-50">
+                  <tr className="border-b border-slate-200">
                     <th className="text-left py-2 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Destination</th>
                     <th className="text-left py-2 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Gateway</th>
                     <th className="text-left py-2 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Interface</th>
@@ -572,6 +590,10 @@ const PoliciesTab = memo(({ policies }) => {
     return <EmptyTabState message="Nessuna policy configurata in questo VDOM." />;
   }
 
+  const total = policies.length;
+  const disabledCount = policies.filter((p) => p.status === 'disable').length;
+  const unusedCount = policies.filter((p) => p.hit_count === 0).length;
+
   const formatBytes = (bytes) => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -581,10 +603,23 @@ const PoliciesTab = memo(({ policies }) => {
   };
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-slate-200">
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        <div className="px-3 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600">
+          Totale: {total}
+        </div>
+        <div className="px-3 py-1.5 rounded-full bg-amber-50 border border-amber-200 text-[10px] font-black uppercase tracking-widest text-amber-700">
+          Unused: {unusedCount}
+        </div>
+        <div className="px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-600">
+          Disabled: {disabledCount}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-slate-200">
+        <table className="w-full text-sm min-w-[1100px]">
+          <thead className="bg-slate-50">
+            <tr className="border-b border-slate-200">
             <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">ID</th>
             <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Name</th>
             <th className="text-left py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Source</th>
@@ -593,108 +628,109 @@ const PoliciesTab = memo(({ policies }) => {
             <th className="text-center py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Action</th>
             <th className="text-center py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Log</th>
             <th className="text-right py-3 px-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Traffic</th>
-          </tr>
-        </thead>
-        <tbody>
-          {policies.map((policy) => {
-            const isUnused = policy.hit_count === 0;
-            const isDisabled = policy.status === 'disable';
-            return (
-              <tr
-                key={policy.policy_id}
-                className={cn(
-                  "border-b border-slate-50 hover:bg-slate-50/60 transition-colors",
-                  isUnused && "bg-amber-50/30",
-                  isDisabled && "opacity-50"
-                )}
-              >
-                <td className="py-3 px-4">
-                  <span className="font-mono font-bold text-slate-500 text-xs">#{policy.policy_id}</span>
-                </td>
-                <td className="py-3 px-4">
-                  <div>
-                    <span className="font-bold text-slate-900 text-xs">{policy.name || '---'}</span>
-                    {policy.comments && (
-                      <p className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[200px]">{policy.comments}</p>
-                    )}
-                  </div>
-                </td>
-                <td className="py-3 px-4">
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap gap-1">
-                      {policy.src_interfaces.map((iface, i) => (
-                        <span key={i} className="text-[9px] font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">
-                          {iface}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {policy.src_addresses.map((addr, i) => (
-                        <span key={i} className="text-[9px] font-mono text-slate-500">{addr}</span>
-                      ))}
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3 px-4">
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap gap-1">
-                      {policy.dst_interfaces.map((iface, i) => (
-                        <span key={i} className="text-[9px] font-bold bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded border border-violet-100">
-                          {iface}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {policy.dst_addresses.map((addr, i) => (
-                        <span key={i} className="text-[9px] font-mono text-slate-500">{addr}</span>
-                      ))}
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3 px-4">
-                  <div className="flex flex-wrap gap-1">
-                    {policy.services.map((svc, i) => (
-                      <span key={i} className="text-[9px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
-                        {svc}
-                      </span>
-                    ))}
-                  </div>
-                </td>
-                <td className="py-3 px-4 text-center">
-                  <span className={cn(
-                    "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full",
-                    policy.action === 'accept'
-                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                      : "bg-red-50 text-red-700 border border-red-200"
-                  )}>
-                    {policy.action === 'accept' ? 'ACCEPT' : 'DENY'}
-                  </span>
-                </td>
-                <td className="py-3 px-4 text-center">
-                  {policy.log_traffic !== 'disable' ? (
-                    <span className="text-[9px] font-bold bg-cyan-50 text-cyan-700 px-2 py-1 rounded border border-cyan-100 uppercase">
-                      {policy.log_traffic}
-                    </span>
-                  ) : (
-                    <span className="text-slate-300 text-xs">---</span>
+            </tr>
+          </thead>
+          <tbody>
+            {policies.map((policy) => {
+              const isUnused = policy.hit_count === 0;
+              const isDisabled = policy.status === 'disable';
+              return (
+                <tr
+                  key={policy.policy_id}
+                  className={cn(
+                    "border-b border-slate-50 hover:bg-slate-50/60 transition-colors",
+                    isUnused && "bg-amber-50/30",
+                    isDisabled && "opacity-50"
                   )}
-                </td>
-                <td className="py-3 px-4 text-right">
-                  <div>
-                    <span className="text-xs font-bold text-slate-700">{formatBytes(policy.bytes)}</span>
-                    <div className="text-[9px] text-slate-400 font-mono">
-                      {policy.hit_count.toLocaleString()} hits
-                      {isUnused && (
-                        <span className="ml-1 text-amber-600 font-black">UNUSED</span>
+                >
+                  <td className="py-3 px-4">
+                    <span className="font-mono font-bold text-slate-500 text-xs">#{policy.policy_id}</span>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div>
+                      <span className="font-bold text-slate-900 text-xs">{policy.name || '---'}</span>
+                      {policy.comments && (
+                        <p className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[240px]">{policy.comments}</p>
                       )}
                     </div>
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap gap-1">
+                        {policy.src_interfaces.map((iface, i) => (
+                          <span key={i} className="text-[9px] font-bold bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-100">
+                            {iface}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {policy.src_addresses.map((addr, i) => (
+                          <span key={i} className="text-[9px] font-mono text-slate-500">{addr}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap gap-1">
+                        {policy.dst_interfaces.map((iface, i) => (
+                          <span key={i} className="text-[9px] font-bold bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded border border-violet-100">
+                            {iface}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {policy.dst_addresses.map((addr, i) => (
+                          <span key={i} className="text-[9px] font-mono text-slate-500">{addr}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex flex-wrap gap-1">
+                      {policy.services.map((svc, i) => (
+                        <span key={i} className="text-[9px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                          {svc}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    <span className={cn(
+                      "text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full",
+                      policy.action === 'accept'
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : "bg-red-50 text-red-700 border border-red-200"
+                    )}>
+                      {policy.action === 'accept' ? 'ACCEPT' : 'DENY'}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-center">
+                    {policy.log_traffic !== 'disable' ? (
+                      <span className="text-[9px] font-bold bg-cyan-50 text-cyan-700 px-2 py-1 rounded border border-cyan-100 uppercase">
+                        {policy.log_traffic}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300 text-xs">---</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-right">
+                    <div>
+                      <span className="text-xs font-bold text-slate-700">{formatBytes(policy.bytes)}</span>
+                      <div className="text-[9px] text-slate-400 font-mono">
+                        {policy.hit_count.toLocaleString()} hits
+                        {isUnused && (
+                          <span className="ml-1 text-amber-600 font-black">UNUSED</span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 });
@@ -733,11 +769,11 @@ const ObjectsTab = memo(({ objects }) => {
               </span>
               <span className="text-[10px] font-bold text-slate-400">{objs.length} oggetti</span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {objs.map((obj) => (
                 <div
                   key={obj.name}
-                  className="bg-white border border-slate-100 rounded-xl p-4 hover:border-blue-200 hover:shadow-md transition-all"
+                  className="bg-white border border-slate-100 rounded-2xl p-4 hover:border-blue-200 hover:shadow-md transition-all"
                 >
                   <div className="font-bold text-slate-900 text-sm mb-1">{obj.name}</div>
                   <div className="space-y-1">
