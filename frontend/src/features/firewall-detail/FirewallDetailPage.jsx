@@ -808,15 +808,40 @@ export const FirewallDetailPage = ({ firewallId, onBack }) => {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <Alert variant="error" title="Errore" message={error} />
-        <div className="flex gap-3 mt-6">
-          <button onClick={onBack} className="px-6 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors">
-            Torna all'Inventory
-          </button>
-          <button onClick={refetch} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors">
-            Riprova
-          </button>
+      <div className="flex flex-col items-center justify-center py-24 px-6">
+        <div className="w-full max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-xl shadow-slate-200/50 p-8">
+          <Alert variant="error" title="Errore" message={error} />
+
+          <div className="mt-6">
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+              Cosa controllare
+            </div>
+            <div className="mt-3 grid gap-2">
+              <div className="flex items-center gap-3 bg-slate-50/80 border border-slate-100 rounded-2xl px-4 py-3">
+                <Wifi size={16} className="text-emerald-500" />
+                <span className="text-sm text-slate-700">VPN attiva verso la rete dei firewall</span>
+              </div>
+              <div className="flex items-center gap-3 bg-slate-50/80 border border-slate-100 rounded-2xl px-4 py-3">
+                <WifiOff size={16} className="text-amber-500" />
+                <span className="text-sm text-slate-700">Se il firewall è offline, il dettaglio può fallire</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 mt-8">
+            <button
+              onClick={onBack}
+              className="px-6 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors"
+            >
+              Torna all'Inventory
+            </button>
+            <button
+              onClick={refetch}
+              className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors"
+            >
+              Riprova
+            </button>
+          </div>
         </div>
       </div>
     );
