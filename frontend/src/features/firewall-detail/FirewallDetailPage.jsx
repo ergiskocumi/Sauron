@@ -761,7 +761,8 @@ const PoliciesTab = memo(({ policies }) => {
                   </td>
                   <td className="py-3 px-4 text-center">
                     {policy.log_traffic !== 'disable' ? (
-                      <span className="text-[9px] font-bold bg-cyan-50 text-cyan-700 px-2 py-1 rounded border border-cyan-100 uppercase">
+                      <span className="inline-flex items-center gap-1.5 text-[9px] font-black bg-cyan-50 text-cyan-700 px-2.5 py-1 rounded-full border border-cyan-100 uppercase tracking-widest">
+                        <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
                         {policy.log_traffic}
                       </span>
                     ) : (
