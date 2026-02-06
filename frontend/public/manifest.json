@@ -1,0 +1,16 @@
+{
+  "name": "Sauron Network Intelligence",
+  "short_name": "Sauron",
+  "description": "Piattaforma per la gestione e il monitoraggio di firewall FortiGate",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/sauron-eye.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

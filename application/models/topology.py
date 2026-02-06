@@ -384,11 +384,12 @@ class Topology(BaseModel):
     )
     ip_to_owners: Dict[int, List[Tuple[str, int]]] = Field(
         default_factory=dict,
-        description="IP uint32 -> [(node_key, interface_index in link)]"
+        description="IP uint32 -> [(node_key, interface_index in interfaces)]"
     )
-
-    # Store interfaces for reference
-    _interfaces: List[InterfaceRecord] = []
+    interfaces: List[InterfaceRecord] = Field(
+        default_factory=list,
+        description="Lista completa interfacce usate per costruire la topologia"
+    )
 
     @property
     def node_count(self) -> int:
@@ -410,13 +411,22 @@ class Topology(BaseModel):
         Returns:
             Lista di (neighbor_key, Link)
         """
-        if node_key not in self.adjacency:
-            return []
+        if node_key in self.adjacency:
+            return [
+                (neighbor_key, self.links[link_idx])
+                for neighbor_key, link_idx in self.adjacency[node_key]
+            ]
 
-        return [
-            (neighbor_key, self.links[link_idx])
-            for neighbor_key, link_idx in self.adjacency[node_key]
-        ]
+        # Backward compatibility for legacy snapshots without adjacency.
+        neighbors: List[Tuple[str, Link]] = []
+        for link in self.links:
+            endpoints = link.get_endpoints()
+            if node_key not in endpoints:
+                continue
+            for endpoint in endpoints:
+                if endpoint != node_key:
+                    neighbors.append((endpoint, link))
+        return neighbors
 
     def find_node_by_ip(self, ip: int) -> Optional[Tuple[str, InterfaceRecord]]:
         """
@@ -435,16 +445,30 @@ class Topology(BaseModel):
         if not owners:
             return None
 
-        # Restituisce il primo owner (potrebbe essere multipli in caso di overlap)
-        node_key, iface_idx = owners[0]
+        # Prova tutte le ownership note. In caso di overlap restituisce la prima valida.
+        for node_key, iface_idx in owners:
+            iface = self._get_interface_by_index(iface_idx)
+            if iface is not None and iface.ip == ip and iface.node.node_key == node_key:
+                return (node_key, iface)
 
-        # Trova l'interfaccia nel link
+        # Backward compatibility: vecchi snapshot possono avere index non valorizzato.
+        for iface in self.interfaces:
+            if iface.ip == ip:
+                return (iface.node.node_key, iface)
+
+        # Fallback estremo: cerca nelle interfacce appese ai link legacy.
         for link in self.links:
             for iface in link.interfaces:
-                if iface.ip == ip and iface.node.node_key == node_key:
-                    return (node_key, iface)
+                if iface.ip == ip:
+                    return (iface.node.node_key, iface)
 
         return None
+
+    def _get_interface_by_index(self, idx: int) -> Optional[InterfaceRecord]:
+        """Restituisce l'interfaccia per indice, con protezione da valori legacy invalidi."""
+        if idx < 0 or idx >= len(self.interfaces):
+            return None
+        return self.interfaces[idx]
 
     def get_node(self, node_key: str) -> Optional[Node]:
         """

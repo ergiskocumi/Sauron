@@ -191,7 +191,12 @@ class ResolverService:
 
     def _find_ip_for_node(self, node_key: str, snapshot: NetworkSnapshot) -> Optional[str]:
         """Trova un IP valido per un nodo dalla topologia."""
-        # Search in links for interfaces belonging to this node
+        # Prefer snapshot-level interfaces (piu' complete nella topologia directed).
+        for iface in snapshot.interfaces:
+            if iface.node.node_key == node_key and iface.ip and iface.ip != 0:
+                return iface.ip_str
+
+        # Backward compatibility: vecchi snapshot solo con link.interfaces.
         for link in snapshot.topology.links:
             for iface in link.interfaces:
                 if iface.node.node_key == node_key and iface.ip and iface.ip != 0:

@@ -420,11 +420,9 @@ class PathfinderService:
             is_self=True se l'IP e' proprio del nodo
         """
         # Check if any interface of this node has this IP
-        for link in topology.links:
-            for iface in link.interfaces:
-                if iface.node.node_key == node.node_key:
-                    if iface.ip == target_ip:
-                        return (iface.iface_name, True)
+        for iface in self._interfaces_for_node(topology, node.node_key):
+            if iface.ip == target_ip:
+                return (iface.iface_name, True)
 
         return None
 
@@ -451,11 +449,26 @@ class PathfinderService:
         """
         node_key = current_node.node_key
 
-        # Get neighbors
+        # Get neighbors and check candidate owners using global IP index.
         neighbors = topology.get_neighbors(node_key)
+        neighbor_keys = {neighbor_key for neighbor_key, _ in neighbors}
+        owners = topology.ip_to_owners.get(gateway_ip, [])
 
+        for neighbor_key, iface_idx in owners:
+            if neighbor_key not in neighbor_keys:
+                continue
+
+            iface = None
+            if 0 <= iface_idx < len(topology.interfaces):
+                iface = topology.interfaces[iface_idx]
+
+            if iface is not None and iface.node.node_key == neighbor_key:
+                neighbor_node = topology.get_node(neighbor_key)
+                if neighbor_node is not None:
+                    return (neighbor_node, iface.iface_name)
+
+        # Backward compatibility: legacy snapshots may only have link-level interfaces.
         for neighbor_key, link in neighbors:
-            # Check if gateway IP belongs to any interface in this link
             for iface in link.interfaces:
                 if iface.ip == gateway_ip and iface.node.node_key == neighbor_key:
                     neighbor_node = topology.get_node(neighbor_key)
@@ -464,6 +477,20 @@ class PathfinderService:
 
         # Gateway not found among neighbors - might be external
         return None
+
+    def _interfaces_for_node(self, topology: Topology, node_key: str) -> List[InterfaceRecord]:
+        """
+        Restituisce tutte le interfacce di un nodo, con fallback legacy.
+        """
+        if topology.interfaces:
+            return [iface for iface in topology.interfaces if iface.node.node_key == node_key]
+
+        interfaces: List[InterfaceRecord] = []
+        for link in topology.links:
+            for iface in link.interfaces:
+                if iface.node.node_key == node_key:
+                    interfaces.append(iface)
+        return interfaces
 
     @staticmethod
     def _ip_to_int(ip_str: str) -> int:

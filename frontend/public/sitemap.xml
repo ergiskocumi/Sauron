@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+                            http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+  
+  <!-- Homepage -->
+  <url>
+    <loc>https://sauron.local/</loc>
+    <lastmod>2026-02-06</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://sauron.local/og-image.png</image:loc>
+      <image:title>Sauron Network Intelligence Dashboard</image:title>
+      <image:caption>Dashboard principale di Sauron per la gestione firewall</image:caption>
+    </image:image>
+  </url>
+  
+  <!-- Inventory -->
+  <url>
+    <loc>https://sauron.local/?tab=inventory</loc>
+    <lastmod>2026-02-06</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <!-- Network Map -->
+  <url>
+    <loc>https://sauron.local/?tab=map</loc>
+    <lastmod>2026-02-06</lastmod>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <!-- Path Simulation -->
+  <url>
+    <loc>https://sauron.local/?tab=simulation</loc>
+    <lastmod>2026-02-06</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+</urlset>

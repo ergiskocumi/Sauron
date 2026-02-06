@@ -1,24 +1,29 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, Suspense, lazy } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from './lib/utils';
 import { Layout } from './components/Layout';
 import { InventoryTable } from './features/inventory/InventoryTable';
-import { NetworkMap } from './features/topology/NetworkMap';
-import { useHeartbeat } from './hooks/useHeartbeat';
 import { useInventory } from './hooks/useInventory';
+import { useSystemInfo } from './hooks/useSystemInfo';
+import { useReducedMotion } from './hooks/useReducedMotion';
 import { Activity, RefreshCw, Server, Info, Zap } from 'lucide-react';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FirewallDetailPage } from './features/firewall-detail/FirewallDetailPage';
 import { startScan as scanNetwork } from './services/scanService';
 import { TABS } from './constants';
+import { LoadingSpinner } from './components/ui/LoadingSpinner';
+
+// Lazy load NetworkMap - it's heavy with ReactFlow
+const NetworkMap = lazy(() => import('./features/topology/NetworkMap').then(m => ({ default: m.NetworkMap })));
 
 function App() {
   const [activeTab, setActiveTab] = useState(TABS.INVENTORY);
   const [selectedFirewallId, setSelectedFirewallId] = useState(null);
-  const { inventory } = useInventory();
-  const heartbeatStatuses = useHeartbeat(inventory);
+  const { inventory, healthById } = useInventory();
+  const { info: systemInfo } = useSystemInfo();
   const [isScanning, setIsScanning] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   // Reset firewall detail when switching away from inventory
   const handleSetActiveTab = useCallback((tab) => {
@@ -29,15 +34,17 @@ function App() {
   }, []);
 
   const onlineCount = useMemo(
-    () => inventory.filter(f => heartbeatStatuses[f.id] === 'online').length,
-    [inventory, heartbeatStatuses]
+    () => inventory.filter(f => healthById?.[f.id]?.reachable === true).length,
+    [inventory, healthById]
   );
   const offlineCount = useMemo(
-    () => inventory.filter(f => heartbeatStatuses[f.id] === 'offline').length,
-    [inventory, heartbeatStatuses]
+    () => inventory.filter(f => healthById?.[f.id]?.reachable === false && f.enabled).length,
+    [inventory, healthById]
   );
+  const totalCount = inventory.length;
+  const syncSuccess = totalCount > 0 ? Math.round((onlineCount / totalCount) * 100) : 0;
 
-  const startScan = async () => {
+  const startScan = useCallback(async () => {
     setIsScanning(true);
     const toastId = toast.loading('Inizializzazione scansione di rete...');
 
@@ -56,7 +63,7 @@ function App() {
     } finally {
       setIsScanning(false);
     }
-  };
+  }, []);
 
   return (
     <>
@@ -80,10 +87,10 @@ function App() {
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, y: 15 }}
+              initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, y: -15 }}
+              transition={shouldReduceMotion ? { duration: 0.1 } : { duration: 0.3, ease: "easeInOut" }}
               className="w-full flex flex-col gap-8"
             >
               {/* Header Dynamic Title */}
@@ -136,26 +143,26 @@ function App() {
                           <StatusCard
                             label="Online Devices"
                             value={onlineCount}
-                            total={inventory.length}
+                            total={totalCount}
                             color="green"
                             icon={<Server size={18} />}
                           />
                           <StatusCard
                             label="Critical Alerts"
                             value={offlineCount}
-                            total={inventory.length}
+                            total={totalCount}
                             color="red"
                             icon={<Activity size={18} />}
                           />
                           <StatusCard
                             label="Sync Success"
-                            value="98%"
+                            value={`${syncSuccess}%`}
                             color="blue"
                             icon={<RefreshCw size={18} />}
                           />
                           <StatusCard
                             label="System Info"
-                            value="v0.1.0"
+                            value={systemInfo?.app_version ? `v${systemInfo.app_version}` : '---'}
                             color="slate"
                             icon={<Info size={18} />}
                           />
@@ -168,7 +175,13 @@ function App() {
                 ) : activeTab === TABS.MAP ? (
                   <ErrorBoundary>
                     <div className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-2xl shadow-slate-200/60 h-[calc(100vh-280px)] w-full mb-12">
-                      <NetworkMap />
+                      <Suspense fallback={
+                        <div className="w-full h-full flex items-center justify-center bg-slate-50">
+                          <LoadingSpinner message="Caricamento mappa di rete..." size="lg" />
+                        </div>
+                      }>
+                        <NetworkMap />
+                      </Suspense>
                     </div>
                   </ErrorBoundary>
                 ) : (
@@ -190,6 +203,7 @@ function App() {
 }
 
 const StatusCard = React.memo(({ label, value, total, color, icon }) => {
+  const shouldReduceMotion = useReducedMotion();
   const colors = {
     green: 'bg-green-500/10 text-green-600 border-green-200',
     red: 'bg-red-500/10 text-red-600 border-red-200',
@@ -199,8 +213,11 @@ const StatusCard = React.memo(({ label, value, total, color, icon }) => {
 
   return (
     <motion.div 
-      whileHover={{ y: -4, transition: { duration: 0.2 } }}
-      className={cn("px-6 py-5 rounded-3xl border bg-white flex items-center gap-5 shadow-sm shadow-slate-200/50 cursor-default transition-shadow hover:shadow-xl hover:shadow-slate-200/60")}
+      whileHover={shouldReduceMotion ? false : { y: -4, transition: { duration: 0.2 } }}
+      className={cn("px-6 py-5 rounded-3xl border bg-white flex items-center gap-5 shadow-sm shadow-slate-200/50 cursor-default transition-shadow hover:shadow-xl hover:shadow-slate-200/60 focus-within:ring-2 focus-within:ring-blue-500/20")}
+      tabIndex={0}
+      role="region"
+      aria-label={`${label}: ${value}${total ? ` di ${total}` : ''}`}
     >
       <div className={cn("p-3.5 rounded-2xl border", colors[color])}>
         {icon}

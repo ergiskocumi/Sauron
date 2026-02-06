@@ -471,7 +471,7 @@ class FortiGateClient(FirewallRepository):
 
         Endpoint: GET /monitor/system/resource
         """
-        raw = await self._make_request_raw("/monitor/system/resource")
+        raw = await self._make_request_raw("/monitor/system/resource", params={"vdom": "root"})
 
         try:
             return SystemResource(
@@ -492,7 +492,7 @@ class FortiGateClient(FirewallRepository):
 
         Endpoint: GET /monitor/system/status
         """
-        raw = await self._make_request_raw("/monitor/system/status")
+        raw = await self._make_request_raw("/monitor/system/status", params={"vdom": "root"})
 
         try:
             return SystemStatus.model_validate(raw)

@@ -13,7 +13,8 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom'],
-          'vendor-ui': ['framer-motion', 'lucide-react'],
+          'vendor-motion': ['framer-motion'],
+          'vendor-icons': ['lucide-react'],
         }
       }
     }

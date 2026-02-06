@@ -86,7 +86,7 @@ class TopologyService:
         logger.debug(f"Active interfaces after filtering: {len(active_interfaces)}")
 
         # Step 2: Build IP index (needed for next-hop lookup)
-        ip_to_owners = self._build_ip_index(active_interfaces, [])
+        ip_to_owners = self._build_ip_index(active_interfaces)
 
         # Step 3: Extract links
         if routing_tables:
@@ -106,8 +106,11 @@ class TopologyService:
         # Step 4: Collect all nodes
         nodes: Set[str] = set()
         for link in links:
-            nodes.add(link.source)
-            nodes.add(link.target)
+            if link.source:
+                nodes.add(link.source)
+            if link.target:
+                nodes.add(link.target)
+            nodes.update(link.get_endpoints())
 
         # Also add nodes from interfaces not in links (isolated nodes)
         for iface in active_interfaces:
@@ -123,6 +126,7 @@ class TopologyService:
             links=links,
             adjacency=adjacency,
             ip_to_owners=ip_to_owners,
+            interfaces=active_interfaces,
         )
 
         logger.info(
@@ -378,64 +382,19 @@ class TopologyService:
         links: List[Link] = []
 
         for subnet, interfaces in subnet_buckets.items():
-            # Estrai nodi unici
-            nodes_in_bucket: Set[str] = set()
-            for iface in interfaces:
-                nodes_in_bucket.add(iface.node.node_key)
+            nodes_in_bucket = {iface.node.node_key for iface in interfaces}
 
-            # Crea link solo se 2+ nodi diversi sulla stessa subnet
+            # In vista L2 legacy rappresentiamo un unico segmento condiviso.
             if len(nodes_in_bucket) >= 2:
-                # Create pairwise links (full mesh)
-                node_list = list(nodes_in_bucket)
-                for i in range(len(node_list)):
-                    for j in range(i + 1, len(node_list)):
-                        source = node_list[i]
-                        target = node_list[j]
-
-                        # Find interfaces for source and target
-                        source_iface = next(
-                            (iface for iface in interfaces if iface.node.node_key == source),
-                            None
-                        )
-                        target_iface = next(
-                            (iface for iface in interfaces if iface.node.node_key == target),
-                            None
-                        )
-
-                        if source_iface and target_iface:
-                            # Create bidirectional links with metrics
-                            links.append(Link(
-                                source=source,
-                                target=target,
-                                subnet=subnet,
-                                source_interface=source_iface.iface_name,
-                                target_ip=target_iface.ip_str,
-                                cost=1,
-                                protocol="connected",
-                                distance=0,
-                                bandwidth_mbps=source_iface.bandwidth_mbps,
-                                latency_ms=source_iface.estimated_latency_ms,
-                                reliability=source_iface.reliability_score,
-                                interfaces=[source_iface, target_iface],
-                            ))
-                            links.append(Link(
-                                source=target,
-                                target=source,
-                                subnet=subnet,
-                                source_interface=target_iface.iface_name,
-                                target_ip=source_iface.ip_str,
-                                cost=1,
-                                protocol="connected",
-                                distance=0,
-                                bandwidth_mbps=target_iface.bandwidth_mbps,
-                                latency_ms=target_iface.estimated_latency_ms,
-                                reliability=target_iface.reliability_score,
-                                interfaces=[target_iface, source_iface],
-                            ))
-
-                logger.debug(
-                    f"Legacy links: {subnet} connects {len(nodes_in_bucket)} nodes"
-                )
+                links.append(Link(
+                    subnet=subnet,
+                    endpoints=nodes_in_bucket,
+                    cost=1,
+                    protocol="connected",
+                    distance=0,
+                    interfaces=list(interfaces),
+                ))
+                logger.debug(f"Legacy segment: {subnet} connects {len(nodes_in_bucket)} nodes")
 
         return links
 
@@ -459,15 +418,24 @@ class TopologyService:
         adjacency: Dict[str, List[Tuple[str, int]]] = defaultdict(list)
 
         for link_idx, link in enumerate(links):
-            # Directed edge: source -> target
-            adjacency[link.source].append((link.target, link_idx))
+            # Directed edge: source -> target (canonical routing view)
+            if link.source and link.target:
+                adjacency[link.source].append((link.target, link_idx))
+                continue
+
+            # Legacy L2 segment: treat endpoints as an undirected clique.
+            endpoints = sorted(link.get_endpoints())
+            for i, source in enumerate(endpoints):
+                for j, target in enumerate(endpoints):
+                    if i == j:
+                        continue
+                    adjacency[source].append((target, link_idx))
 
         return dict(adjacency)
 
     def _build_ip_index(
         self,
         interfaces: List[InterfaceRecord],
-        links: List[Link],
     ) -> Dict[int, List[Tuple[str, int]]]:
         """
         Costruisce reverse index IP -> (node_key, interface_index).
@@ -479,14 +447,13 @@ class TopologyService:
             links: Lista di link (per trovare interface index)
 
         Returns:
-            Dict[ip_uint32, List[(node_key, interface_index)]]
+            Dict[ip_uint32, List[(node_key, interface_index in topology.interfaces)]]
         """
         ip_to_owners: Dict[int, List[Tuple[str, int]]] = defaultdict(list)
 
-        for iface in interfaces:
+        for idx, iface in enumerate(interfaces):
             node_key = iface.node.node_key
-            # Interface index is just a placeholder, real lookup happens in Topology
-            ip_to_owners[iface.ip].append((node_key, 0))
+            ip_to_owners[iface.ip].append((node_key, idx))
 
         return dict(ip_to_owners)
 

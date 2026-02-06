@@ -3,19 +3,19 @@
  *
  * Componente principale per visualizzare la lista dei firewall.
  * Gestisce automaticamente loading, errori e visualizzazione dati.
+ * Ottimizzato con memoizzazione e reduced motion support.
  *
  * Pattern Applicato:
  * - Container/Presentational: Logica separata dalla presentazione
  * - Custom Hook: useInventory gestisce lo stato
  * - Composition: Usa componenti UI primitivi riutilizzabili
- *
- * Uso:
- *   <InventoryTable />
+ * - Memoization: Previene re-render non necessari
  */
 
 import { useInventory } from '../../hooks/useInventory';
+import { useReducedMotion } from '../../hooks/useReducedMotion';
 import { cn } from '../../lib/utils';
-import { useState } from 'react';
+import { useState, memo, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
   Card,
@@ -32,51 +32,370 @@ import {
   TableCell,
   TableEmptyState,
 } from '../../components/ui/Table';
-import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Alert } from '../../components/ui/Alert';
+import { Skeleton } from '../../components/ui/Skeleton';
 import { RefreshCw, Server, Globe, Shield, Copy, Check, ExternalLink, Plus, List, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { AddFirewallForm } from './AddFirewallForm';
 
-export const InventoryTable = ({ onViewDetail }) => {
+// =============================================================================
+// TABLE ROW COMPONENT (Memoized)
+// =============================================================================
+
+const FirewallTableRow = memo(({ 
+  firewall, 
+  status, 
+  copiedId, 
+  onCopy, 
+  onViewDetail,
+  shouldReduceMotion 
+}) => {
+  const isCopied = copiedId === firewall.id;
+
+  return (
+    <TableRow 
+      className="group cursor-default hover:z-30 relative hover:bg-blue-50/40 transition-all duration-300 border-b border-slate-50/50 last:border-none"
+    >
+      <TableCell className="pl-8 py-6">
+        <div className="flex items-center gap-5">
+          <div className="w-14 h-14 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:scale-110 group-hover:shadow-xl group-hover:shadow-blue-500/20 transition-all duration-500 shadow-sm">
+            <Server size={24} />
+          </div>
+          <div>
+            <div className="font-black text-slate-900 text-base leading-tight group-hover:text-blue-600 transition-colors">
+              {firewall.id}
+            </div>
+            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">FortiGate FW</div>
+          </div>
+        </div>
+      </TableCell>
+      
+      <TableCell>
+        <div className="flex items-center gap-3">
+          <div className="relative group/ip">
+            {/* Desktop Tooltip */}
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 scale-95 opacity-0 group-hover/ip:opacity-100 group-hover/ip:scale-100 pointer-events-none transition-all duration-300 z-10">
+              <div className="bg-slate-900 px-3 py-1.5 rounded-xl shadow-2xl flex items-center gap-2">
+                <span className="text-[10px] font-black text-white whitespace-nowrap tracking-tighter">
+                  OPEN DASHBOARD
+                </span>
+                <ExternalLink size={10} className="text-blue-400" />
+              </div>
+              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45" />
+            </div>
+
+            <a 
+              href={`https://${firewall.host}`}
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-white hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300"
+            >
+              <Globe size={14} className="text-slate-400 group-hover/ip:text-blue-500" />
+              <code className="text-[13px] font-mono font-bold text-slate-600 group-hover/ip:text-blue-600 transition-colors">
+                {firewall.host.split(':')[0]}
+              </code>
+            </a>
+          </div>
+
+          <button 
+            onClick={onCopy}
+            className="p-2 hover:text-blue-600 text-slate-300 transition-colors bg-slate-50 rounded-lg hover:bg-white border border-transparent hover:border-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            title="Copia IP"
+            aria-label={`Copia indirizzo IP di ${firewall.id}`}
+          >
+            {isCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+          </button>
+        </div>
+      </TableCell>
+      
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <div className="relative group/vdom">
+            <div className="flex items-center gap-2.5 bg-slate-900 px-4 py-2 rounded-2xl group-hover/vdom:bg-blue-600 transition-all duration-300 cursor-help shadow-lg shadow-slate-900/10 group-hover/vdom:shadow-blue-500/30 group-hover/vdom:scale-105">
+              <Shield size={14} className="text-blue-400 group-hover/vdom:text-white" />
+              <span className="text-white font-black text-[11px] tracking-wider uppercase">
+                {firewall.vdoms?.length || 1} V-DOM
+              </span>
+            </div>
+
+            {/* VDOM Popover for Desktop */}
+            {firewall.vdoms?.length > 0 && (
+              <div
+                className="absolute bottom-full left-0 pb-6 -mb-4 w-72 opacity-0 group-hover/vdom:opacity-100 translate-y-2 group-hover/vdom:translate-y-0 scale-95 group-hover/vdom:scale-100 pointer-events-none group-hover/vdom:pointer-events-auto transition-all duration-300 ease-out z-50"
+              >
+                <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-[0_30px_90px_rgba(30,41,59,0.4)] relative overflow-hidden">
+                  <div className="bg-slate-900 px-7 py-6 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-500/40">
+                        <List size={18} className="text-white" />
+                      </div>
+                      <div>
+                        <span className="block text-[12px] font-black text-white uppercase tracking-[0.2em]">Cluster V-DOM</span>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{firewall.vdoms.length} segmenti attivi</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto py-2 custom-scrollbar bg-white">
+                    {firewall.vdoms.map((vdom, idx) => (
+                      <div 
+                        key={idx} 
+                        className="px-8 py-4 group/item flex items-center justify-between hover:bg-slate-50/80 transition-colors border-b border-slate-50 last:border-none"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-2.5 h-2.5 rounded-full transition-all duration-500",
+                            vdom === firewall.entry_vdom 
+                              ? 'bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.8)] animate-pulse' 
+                              : 'bg-slate-200 group-hover/item:bg-blue-400'
+                          )} />
+                          <span className={cn(
+                            "text-[14px] font-bold transition-colors",
+                            vdom === firewall.entry_vdom ? 'text-blue-600' : 'text-slate-600 group-hover/item:text-slate-900'
+                          )}>
+                            {vdom}
+                          </span>
+                        </div>
+                        {vdom === firewall.entry_vdom && (
+                          <span className="text-[9px] bg-blue-50 text-blue-600 px-3 py-1.5 rounded-full font-black uppercase border border-blue-100 tracking-tighter shadow-sm shadow-blue-500/5">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="bg-slate-50 px-7 py-4 border-t border-slate-100 flex items-center justify-center">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
+                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] italic">
+                        Network Intelligence
+                      </p>
+                    </div>
+                  </div>
+                  <div className="absolute -bottom-1.5 left-10 w-4 h-4 bg-slate-50 border-b border-r border-slate-100 rotate-45" />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </TableCell>
+      
+      <TableCell className="pr-8">
+        <div className="flex items-center justify-end gap-3">
+          <div className={cn(
+            'flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all duration-300',
+            status.tone === 'success' && 'bg-green-50 text-green-700 border-green-100 group-hover:bg-green-500 group-hover:text-white',
+            status.tone === 'danger' && 'bg-red-50 text-red-700 border-red-100 group-hover:bg-red-500 group-hover:text-white',
+            status.tone === 'disabled' && 'bg-slate-100 text-slate-500 border-slate-200',
+            status.tone === 'pending' && 'bg-amber-50 text-amber-700 border-amber-100'
+          )}>
+            <div className={cn(
+              'w-1.5 h-1.5 rounded-full animate-pulse',
+              status.tone === 'success' && 'bg-green-500 group-hover:bg-white',
+              status.tone === 'danger' && 'bg-red-500 group-hover:bg-white',
+              status.tone === 'disabled' && 'bg-slate-400',
+              status.tone === 'pending' && 'bg-amber-500'
+            )} />
+            <span className="text-[11px] font-black uppercase tracking-widest leading-none">
+              {status.label}
+            </span>
+          </div>
+          
+          <div className="relative group/detail">
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 scale-95 opacity-0 group-hover/detail:opacity-100 group-hover/detail:scale-100 pointer-events-none transition-all duration-300 z-10">
+              <div className="bg-slate-900 px-3 py-1.5 rounded-xl shadow-2xl">
+                <span className="text-[10px] font-black text-white whitespace-nowrap tracking-widest uppercase">
+                  Dettaglio
+                </span>
+              </div>
+              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45" />
+            </div>
+            <button
+              onClick={onViewDetail}
+              className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-xl border border-transparent hover:border-slate-100 transition-all shadow-hover shadow-blue-500/5 active:scale-90 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              aria-label={`Vedi dettagli di ${firewall.id}`}
+            >
+              <Eye size={18} />
+            </button>
+          </div>
+
+          <a
+            href={`https://${firewall.host}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="opacity-0 group-hover:opacity-100 p-2.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-xl border border-transparent hover:border-slate-100 transition-all shadow-hover shadow-blue-500/5 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            aria-label={`Apri dashboard di ${firewall.id}`}
+          >
+            <ExternalLink size={18} />
+          </a>
+        </div>
+        {status.error && (
+          <div className="mt-2 text-right text-[10px] text-red-500 font-bold uppercase tracking-widest">
+            {status.error}
+          </div>
+        )}
+      </TableCell>
+    </TableRow>
+  );
+});
+
+FirewallTableRow.displayName = 'FirewallTableRow';
+
+// =============================================================================
+// MOBILE CARD COMPONENT (Memoized)
+// =============================================================================
+
+const FirewallMobileCard = memo(({
+  firewall,
+  status,
+  copiedId,
+  onCopy,
+  onViewDetail,
+  shouldReduceMotion
+}) => {
+  const isCopied = copiedId === firewall.id;
+
+  return (
+    <motion.div
+      initial={shouldReduceMotion ? false : { opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileTap={{ scale: 0.99 }}
+      className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-blue-500/10 hover:border-blue-200 transition-all duration-300 relative group overflow-hidden"
+    >
+      {/* Status Indicator Absolute Top Right */}
+      <div className="absolute top-6 right-6">
+        <div className={cn(
+          'flex items-center gap-2 px-3 py-1.5 rounded-full border',
+          status.tone === 'success' && 'bg-green-50 text-green-700 border-green-100',
+          status.tone === 'danger' && 'bg-red-50 text-red-700 border-red-100',
+          status.tone === 'disabled' && 'bg-slate-100 text-slate-500 border-slate-200',
+          status.tone === 'pending' && 'bg-amber-50 text-amber-700 border-amber-100'
+        )}>
+          <div className={cn(
+            'w-1.5 h-1.5 rounded-full animate-pulse',
+            status.tone === 'success' && 'bg-green-500',
+            status.tone === 'danger' && 'bg-red-500',
+            status.tone === 'disabled' && 'bg-slate-400',
+            status.tone === 'pending' && 'bg-amber-500'
+          )} />
+          <span className="text-[10px] font-black uppercase tracking-widest">
+            {status.label}
+          </span>
+        </div>
+        {status.error && (
+          <div className="mt-2 text-[10px] text-red-500 font-bold uppercase tracking-widest">
+            {status.error}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-start gap-4 mb-6">
+        <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300 shadow-sm">
+          <Server size={28} />
+        </div>
+        <div>
+          <h3 className="font-black text-slate-900 text-lg leading-tight group-hover:text-blue-600 transition-colors">
+            {firewall.id}
+          </h3>
+          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+            FortiGate FW
+          </div>
+          <div className="flex items-center gap-3 mt-3">
+            <a 
+              href={`https://${firewall.host}`}
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 hover:border-blue-400 hover:bg-white transition-colors"
+            >
+              <Globe size={12} className="text-slate-400" />
+              <code className="text-[11px] font-mono font-bold text-slate-600">
+                {firewall.host.split(':')[0]}
+              </code>
+            </a>
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onCopy();
+              }}
+              className="p-1.5 text-slate-300 hover:text-blue-600 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/30 rounded"
+              aria-label="Copia IP"
+            >
+              {isCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* VDOM Section Mobile */}
+      <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100/50">
+        <div className="flex items-center gap-2 mb-3">
+          <Shield size={14} className="text-blue-500" />
+          <span className="text-[11px] font-black text-slate-900 uppercase tracking-widest">
+            {firewall.vdoms?.length || 0} Virtual Domains
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {firewall.vdoms?.slice(0, 4).map((vdom, idx) => (
+            <div key={idx} className={cn(
+              "px-3 py-1.5 rounded-lg text-[11px] font-bold border flex items-center gap-2",
+              vdom === firewall.entry_vdom 
+                ? "bg-blue-50 text-blue-700 border-blue-100" 
+                : "bg-white text-slate-600 border-slate-200"
+            )}>
+              {vdom === firewall.entry_vdom && <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />}
+              {vdom}
+            </div>
+          ))}
+          {(firewall.vdoms?.length || 0) > 4 && (
+            <div className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-slate-200 text-slate-600 border border-slate-300">
+              +{firewall.vdoms.length - 4} ALTRI
+            </div>
+          )}
+        </div>
+      </div>
+      
+      {/* Action Footer */}
+      <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
+        <button
+          onClick={onViewDetail}
+          className="flex items-center gap-2 text-[11px] font-black text-slate-400 hover:text-blue-600 transition-colors uppercase tracking-[0.15em] focus:outline-none focus:ring-2 focus:ring-blue-500/30 rounded px-2 py-1 -ml-2"
+        >
+          <Eye size={16} />
+          Vedi Dettagli
+        </button>
+        <a
+          href={`https://${firewall.host}`}
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="flex items-center gap-2 text-[11px] font-bold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-blue-500/30 rounded px-2 py-1 -mr-2"
+        >
+          Open Web Dashboard
+          <ExternalLink size={14} />
+        </a>
+      </div>
+    </motion.div>
+  );
+});
+
+FirewallMobileCard.displayName = 'FirewallMobileCard';
+
+// =============================================================================
+// MAIN COMPONENT
+// =============================================================================
+
+export const InventoryTable = memo(({ onViewDetail }) => {
   const { inventory, loading, error, healthById, healthError, refetch } = useInventory();
   const [copiedId, setCopiedId] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
-  const copyToClipboard = (text, id) => {
+  const copyToClipboard = useCallback((text, id) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     toast.success('IP copiato negli appunti');
     setTimeout(() => setCopiedId(null), 2000);
-  };
+  }, []);
 
-  if (loading) {
-    return (
-      <Card className="animate-pulse">
-        <CardBody className="flex flex-col items-center py-20">
-          <LoadingSpinner message="Caricamento inventario..." />
-        </CardBody>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card>
-        <CardBody className="py-20 text-center">
-          <Alert variant="error" title="Errore" message={error} />
-          <button
-            onClick={refetch}
-            className="mt-6 px-6 py-2 bg-slate-900 text-white rounded-xl font-bold"
-          >
-            Riprova
-          </button>
-        </CardBody>
-      </Card>
-    );
-  }
-
-  const getHealthStatus = (firewall) => {
+  const getHealthStatus = useCallback((firewall) => {
     const health = healthById?.[firewall.id];
 
     if (!health) {
@@ -96,7 +415,57 @@ export const InventoryTable = ({ onViewDetail }) => {
     }
 
     return { label: 'Offline', tone: 'danger', error: health.error || null };
-  };
+  }, [healthById, healthError]);
+
+  if (loading) {
+    return (
+      <Card className="border-none bg-white/60 backdrop-blur-md shadow-2xl shadow-slate-200/50">
+        <CardHeader className="flex items-center justify-between border-none pb-0 px-8">
+          <div>
+            <Skeleton.Base className="h-8 w-48 mb-2" />
+            <Skeleton.Base className="h-3 w-32" />
+          </div>
+          <Skeleton.Base className="h-10 w-32" />
+        </CardHeader>
+        <CardBody className="px-0 pb-4 mt-4">
+          <div className="hidden xl:block">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton.TableRow key={i} columns={4} />
+            ))}
+          </div>
+          <div className="xl:hidden px-6 space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-lg">
+                <div className="flex items-start gap-4">
+                  <Skeleton.Circle size="md" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton.Base className="h-5 w-32" />
+                    <Skeleton.Base className="h-3 w-24" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardBody className="py-20 text-center">
+          <Alert variant="error" title="Errore" message={error} />
+          <button
+            onClick={refetch}
+            className="mt-6 px-6 py-2 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500/30"
+          >
+            Riprova
+          </button>
+        </CardBody>
+      </Card>
+    );
+  }
 
   return (
     <Card className="overflow-visible border-none bg-white/60 backdrop-blur-md shadow-2xl shadow-slate-200/50">
@@ -113,15 +482,16 @@ export const InventoryTable = ({ onViewDetail }) => {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowAddForm(true)}
-            className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-xs tracking-tight transition-all flex items-center gap-2 shadow-xl shadow-blue-500/25 active:scale-95"
+            className="px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold text-xs tracking-tight transition-all flex items-center gap-2 shadow-xl shadow-blue-500/25 active:scale-95 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           >
             <Plus size={16} />
             Aggiungi Firewall
           </button>
           <button
             onClick={refetch}
-            className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-2xl transition-all group active:rotate-180"
+            className="p-3 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-2xl transition-all group active:rotate-180 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
             title="Aggiorna Inventario"
+            aria-label="Aggiorna inventario"
           >
             <RefreshCw className="w-5 h-5 transition-transform duration-500" />
           </button>
@@ -143,315 +513,34 @@ export const InventoryTable = ({ onViewDetail }) => {
                   <TableHeaderCell className="pr-8 text-right">Status</TableHeaderCell>
                 </TableHeader>
                 <TableBody>
-                  {inventory.map((firewall) => {
-                    const status = getHealthStatus(firewall);
-
-                    return (
-                      <TableRow 
-                        key={firewall.id} 
-                        className="group cursor-default hover:z-30 relative hover:bg-blue-50/40 transition-all duration-300 border-b border-slate-50/50 last:border-none"
-                      >
-                      <TableCell className="pl-8 py-6">
-                        <div className="flex items-center gap-5">
-                          <div className="w-14 h-14 bg-white border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white group-hover:scale-110 group-hover:shadow-xl group-hover:shadow-blue-500/20 transition-all duration-500 shadow-sm">
-                            <Server size={24} />
-                          </div>
-                          <div>
-                            <div className="font-black text-slate-900 text-base leading-tight group-hover:text-blue-600 transition-colors">
-                              {firewall.id}
-                            </div>
-                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">FortiGate FW</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="relative group/ip">
-                            {/* Desktop Tooltip */}
-                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 scale-95 opacity-0 group-hover/ip:opacity-100 group-hover/ip:scale-100 pointer-events-none transition-all duration-300 z-10">
-                              <div className="bg-slate-900 px-3 py-1.5 rounded-xl shadow-2xl flex items-center gap-2">
-                                <span className="text-[10px] font-black text-white whitespace-nowrap tracking-tighter">
-                                  OPEN DASHBOARD
-                                </span>
-                                <ExternalLink size={10} className="text-blue-400" />
-                              </div>
-                              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45" />
-                            </div>
-
-                            <a 
-                              href={`https://${firewall.host}`}
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-white hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300"
-                            >
-                              <Globe size={14} className="text-slate-400 group-hover/ip:text-blue-500" />
-                              <code className="text-[13px] font-mono font-bold text-slate-600 group-hover/ip:text-blue-600 transition-colors">
-                                {firewall.host.split(':')[0]}
-                              </code>
-                            </a>
-                          </div>
-
-                          <button 
-                            onClick={() => copyToClipboard(firewall.host.split(':')[0], firewall.id)}
-                            className="p-2 hover:text-blue-600 text-slate-300 transition-colors bg-slate-50 rounded-lg hover:bg-white border border-transparent hover:border-slate-100"
-                            title="Copia IP"
-                          >
-                            {copiedId === firewall.id ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
-                          </button>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div className="relative group/vdom">
-                            <div className="flex items-center gap-2.5 bg-slate-900 px-4 py-2 rounded-2xl group-hover/vdom:bg-blue-600 transition-all duration-300 cursor-help shadow-lg shadow-slate-900/10 group-hover/vdom:shadow-blue-500/30 group-hover/vdom:scale-105">
-                              <Shield size={14} className="text-blue-400 group-hover/vdom:text-white" />
-                              <span className="text-white font-black text-[11px] tracking-wider uppercase">
-                                {firewall.vdoms?.length || 1} V-DOM
-                              </span>
-                            </div>
-
-                             {/* VDOM Popover for Desktop */}
-                            {firewall.vdoms?.length > 0 && (
-                              <div
-                                className="absolute bottom-full left-0 pb-6 -mb-4 w-72 opacity-0 group-hover/vdom:opacity-100 translate-y-2 group-hover/vdom:translate-y-0 scale-95 group-hover/vdom:scale-100 pointer-events-none group-hover/vdom:pointer-events-auto transition-all duration-300 ease-out z-50"
-                              >
-                                <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-[0_30px_90px_rgba(30,41,59,0.4)] relative overflow-hidden">
-                                  <div className="bg-slate-900 px-7 py-6 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                      <div className="bg-blue-600 p-2.5 rounded-xl shadow-lg shadow-blue-500/40">
-                                        <List size={18} className="text-white" />
-                                      </div>
-                                      <div>
-                                        <span className="block text-[12px] font-black text-white uppercase tracking-[0.2em]">Cluster V-DOM</span>
-                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{firewall.vdoms.length} segmenti attivi</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="max-h-64 overflow-y-auto py-2 custom-scrollbar bg-white">
-                                    {firewall.vdoms.map((vdom, idx) => (
-                                      <div 
-                                        key={idx} 
-                                        className="px-8 py-4 group/item flex items-center justify-between hover:bg-slate-50/80 transition-colors border-b border-slate-50 last:border-none"
-                                      >
-                                        <div className="flex items-center gap-3">
-                                          <div className={cn(
-                                            "w-2.5 h-2.5 rounded-full transition-all duration-500",
-                                            vdom === firewall.entry_vdom 
-                                              ? 'bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.8)] animate-pulse' 
-                                              : 'bg-slate-200 group-hover/item:bg-blue-400'
-                                          )} />
-                                          <span className={cn(
-                                            "text-[14px] font-bold transition-colors",
-                                            vdom === firewall.entry_vdom ? 'text-blue-600' : 'text-slate-600 group-hover/item:text-slate-900'
-                                          )}>
-                                            {vdom}
-                                          </span>
-                                        </div>
-                                        {vdom === firewall.entry_vdom && (
-                                          <span className="text-[9px] bg-blue-50 text-blue-600 px-3 py-1.5 rounded-full font-black uppercase border border-blue-100 tracking-tighter shadow-sm shadow-blue-500/5">
-                                            Primary
-                                          </span>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <div className="bg-slate-50 px-7 py-4 border-t border-slate-100 flex items-center justify-center">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-1 h-1 bg-blue-500 rounded-full animate-ping" />
-                                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] italic">
-                                        Network Intelligence
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <div className="absolute -bottom-1.5 left-10 w-4 h-4 bg-slate-50 border-b border-r border-slate-100 rotate-45" />
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="pr-8">
-                        <div className="flex items-center justify-end gap-3">
-                          <div className={cn(
-                            'flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all duration-300',
-                            status.tone === 'success' && 'bg-green-50 text-green-700 border-green-100 group-hover:bg-green-500 group-hover:text-white',
-                            status.tone === 'danger' && 'bg-red-50 text-red-700 border-red-100 group-hover:bg-red-500 group-hover:text-white',
-                            status.tone === 'disabled' && 'bg-slate-100 text-slate-500 border-slate-200',
-                            status.tone === 'pending' && 'bg-amber-50 text-amber-700 border-amber-100'
-                          )}>
-                            <div className={cn(
-                              'w-1.5 h-1.5 rounded-full animate-pulse',
-                              status.tone === 'success' && 'bg-green-500 group-hover:bg-white',
-                              status.tone === 'danger' && 'bg-red-500 group-hover:bg-white',
-                              status.tone === 'disabled' && 'bg-slate-400',
-                              status.tone === 'pending' && 'bg-amber-500'
-                            )} />
-                            <span className="text-[11px] font-black uppercase tracking-widest leading-none">
-                              {status.label}
-                            </span>
-                          </div>
-                          
-                          <div className="relative group/detail">
-                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 scale-95 opacity-0 group-hover/detail:opacity-100 group-hover/detail:scale-100 pointer-events-none transition-all duration-300 z-10">
-                              <div className="bg-slate-900 px-3 py-1.5 rounded-xl shadow-2xl">
-                                <span className="text-[10px] font-black text-white whitespace-nowrap tracking-widest uppercase">
-                                  Dettaglio
-                                </span>
-                              </div>
-                              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45" />
-                            </div>
-                            <button
-                              onClick={() => onViewDetail?.(firewall.id)}
-                              className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-xl border border-transparent hover:border-slate-100 transition-all shadow-hover shadow-blue-500/5 active:scale-90"
-                            >
-                              <Eye size={18} />
-                            </button>
-                          </div>
-
-                          <button className="opacity-0 group-hover:opacity-100 p-2.5 text-slate-400 hover:text-blue-600 hover:bg-white rounded-xl border border-transparent hover:border-slate-100 transition-all shadow-hover shadow-blue-500/5">
-                            <ExternalLink size={18} />
-                          </button>
-                        </div>
-                        {status.error && (
-                          <div className="mt-2 text-right text-[10px] text-red-500 font-bold uppercase tracking-widest">
-                            {status.error}
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                    );
-                  })}
+                  {inventory.map((firewall) => (
+                    <FirewallTableRow
+                      key={firewall.id}
+                      firewall={firewall}
+                      status={getHealthStatus(firewall)}
+                      copiedId={copiedId}
+                      onCopy={() => copyToClipboard(firewall.host.split(':')[0], firewall.id)}
+                      onViewDetail={() => onViewDetail?.(firewall.id)}
+                      shouldReduceMotion={shouldReduceMotion}
+                    />
+                  ))}
                 </TableBody>
               </Table>
             </div>
 
             {/* MOBILE/TABLET RESPONSIVE VIEW (< XL) */}
             <div className="xl:hidden flex flex-col gap-4 px-6 md:px-8">
-              {inventory.map((firewall) => {
-                const status = getHealthStatus(firewall);
-
-                return (
-                  <motion.div
-                    key={firewall.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    whileTap={{ scale: 0.99 }}
-                    className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-blue-500/10 hover:border-blue-200 transition-all duration-300 relative group overflow-hidden"
-                  >
-                    {/* Status Indicator Absolute Top Right */}
-                    <div className="absolute top-6 right-6">
-                      <div className={cn(
-                        'flex items-center gap-2 px-3 py-1.5 rounded-full border',
-                        status.tone === 'success' && 'bg-green-50 text-green-700 border-green-100',
-                        status.tone === 'danger' && 'bg-red-50 text-red-700 border-red-100',
-                        status.tone === 'disabled' && 'bg-slate-100 text-slate-500 border-slate-200',
-                        status.tone === 'pending' && 'bg-amber-50 text-amber-700 border-amber-100'
-                      )}>
-                        <div className={cn(
-                          'w-1.5 h-1.5 rounded-full animate-pulse',
-                          status.tone === 'success' && 'bg-green-500',
-                          status.tone === 'danger' && 'bg-red-500',
-                          status.tone === 'disabled' && 'bg-slate-400',
-                          status.tone === 'pending' && 'bg-amber-500'
-                        )} />
-                        <span className="text-[10px] font-black uppercase tracking-widest">
-                          {status.label}
-                        </span>
-                      </div>
-                      {status.error && (
-                        <div className="mt-2 text-[10px] text-red-500 font-bold uppercase tracking-widest">
-                          {status.error}
-                        </div>
-                      )}
-                    </div>
-
-                  <div className="flex items-start gap-4 mb-6">
-                    <div className="w-16 h-16 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300 shadow-sm">
-                      <Server size={28} />
-                    </div>
-                    <div>
-                         <h3 className="font-black text-slate-900 text-lg leading-tight group-hover:text-blue-600 transition-colors">
-                           {firewall.id}
-                         </h3>
-                         <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                           FortiGate FW
-                         </div>
-                         <div className="flex items-center gap-3 mt-3">
-                           <a 
-                             href={`https://${firewall.host}`}
-                             target="_blank" 
-                             rel="noopener noreferrer"
-                             className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 hover:border-blue-400 hover:bg-white transition-colors"
-                           >
-                              <Globe size={12} className="text-slate-400" />
-                              <code className="text-[11px] font-mono font-bold text-slate-600">
-                                {firewall.host.split(':')[0]}
-                              </code>
-                           </a>
-                           <button 
-                             onClick={(e) => {
-                               e.stopPropagation();
-                               copyToClipboard(firewall.host.split(':')[0], firewall.id);
-                             }}
-                             className="p-1.5 text-slate-300 hover:text-blue-600 transition-colors"
-                           >
-                              {copiedId === firewall.id ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
-                           </button>
-                         </div>
-                    </div>
-                  </div>
-
-                  {/* VDOM Section Mobile - Always visible list if < 3, else expander could be added but simpler is vertical list */}
-                  <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100/50">
-                    <div className="flex items-center gap-2 mb-3">
-                       <Shield size={14} className="text-blue-500" />
-                       <span className="text-[11px] font-black text-slate-900 uppercase tracking-widest">
-                         {firewall.vdoms?.length || 0} Virtual Domains
-                       </span>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                       {firewall.vdoms?.slice(0, 4).map((vdom, idx) => (
-                          <div key={idx} className={cn(
-                             "px-3 py-1.5 rounded-lg text-[11px] font-bold border flex items-center gap-2",
-                             vdom === firewall.entry_vdom 
-                               ? "bg-blue-50 text-blue-700 border-blue-100" 
-                               : "bg-white text-slate-600 border-slate-200"
-                          )}>
-                             {vdom === firewall.entry_vdom && <div className="w-1.5 h-1.5 bg-blue-500 rounded-full" />}
-                             {vdom}
-                          </div>
-                       ))}
-                       {(firewall.vdoms?.length || 0) > 4 && (
-                          <div className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-slate-200 text-slate-600 border border-slate-300">
-                             +{firewall.vdoms.length - 4} ALTRI
-                          </div>
-                       )}
-                    </div>
-                  </div>
-                  
-                  {/* Action Footer */}
-                  <div className="mt-4 pt-4 border-t border-slate-100 flex justify-between items-center">
-                    <button
-                       onClick={() => onViewDetail?.(firewall.id)}
-                       className="flex items-center gap-2 text-[11px] font-black text-slate-400 hover:text-blue-600 transition-colors uppercase tracking-[0.15em]"
-                    >
-                       <Eye size={16} />
-                       Vedi Dettagli
-                    </button>
-                    <a
-                       href={`https://${firewall.host}`}
-                       target="_blank" 
-                       rel="noopener noreferrer"
-                       className="flex items-center gap-2 text-[11px] font-bold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider"
-                    >
-                       Open Web Dashboard
-                       <ExternalLink size={14} />
-                    </a>
-                  </div>
-
-                  </motion.div>
-                );
-              })}
+              {inventory.map((firewall, index) => (
+                <FirewallMobileCard
+                  key={firewall.id}
+                  firewall={firewall}
+                  status={getHealthStatus(firewall)}
+                  copiedId={copiedId}
+                  onCopy={() => copyToClipboard(firewall.host.split(':')[0], firewall.id)}
+                  onViewDetail={() => onViewDetail?.(firewall.id)}
+                  shouldReduceMotion={shouldReduceMotion}
+                />
+              ))}
             </div>
           </>
         )}
@@ -465,4 +554,6 @@ export const InventoryTable = ({ onViewDetail }) => {
       )}
     </Card>
   );
-};
+});
+
+InventoryTable.displayName = 'InventoryTable';
