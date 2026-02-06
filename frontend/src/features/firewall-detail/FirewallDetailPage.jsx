@@ -812,11 +812,17 @@ const ObjectsTab = memo(({ objects }) => {
 });
 
 const EmptyTabState = ({ message }) => (
-  <div className="flex flex-col items-center justify-center py-16 text-center">
-    <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-      <Box size={28} className="text-slate-200" />
+  <div className="flex flex-col items-center justify-center py-12">
+    <div className="w-full max-w-xl bg-white border border-slate-200 rounded-3xl shadow-lg shadow-slate-200/40 p-6 text-center">
+      <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+        <Box size={24} className="text-slate-300" />
+      </div>
+      <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest">Nessun dato</h3>
+      <p className="text-sm text-slate-500 mt-2">{message}</p>
+      <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-3">
+        Verifica la configurazione del VDOM selezionato
+      </p>
     </div>
-    <p className="text-sm text-slate-400 font-medium">{message}</p>
   </div>
 );
 
